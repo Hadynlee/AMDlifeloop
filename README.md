@@ -46,6 +46,19 @@ Open `index.html` directly in a browser.
 
 No install step is required. The app is written with plain HTML, CSS, and JavaScript so it is easy to demo and easy to push to GitHub Pages.
 
+## Mobile Branch
+
+The `mobile-app-optimization` branch is optimized for phone usage as a mobile web app. It includes:
+
+- Fixed bottom tab navigation
+- Sticky mobile app header
+- Larger touch targets
+- Horizontal swipe cards for matches
+- Compact mobile map and mission layouts
+- Mobile web app metadata for adding to a phone home screen
+
+To use it like an app, deploy the branch with GitHub Pages or open it from a local server on your phone, then use the browser's "Add to Home Screen" option.
+
 Optional local server:
 
 ```bash
