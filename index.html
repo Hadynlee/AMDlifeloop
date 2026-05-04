@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="LifeLoop AI is a privacy-first lifestyle matching and mission generation demo built for an AI agents hackathon.">
+  <title>LifeLoop AI</title>
+  <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand">
+        <div class="mark">L</div>
+        <div>
+          <h1>LifeLoop AI</h1>
+          <p>Routine-powered discovery</p>
+        </div>
+      </div>
+
+      <nav aria-label="Primary">
+        <button class="nav-button active" data-section="routine" title="Routine Map">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg>
+          <span>Routine Map</span>
+        </button>
+        <button class="nav-button" data-section="summary" title="AI Summary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+          <span>AI Summary</span>
+        </button>
+        <button class="nav-button" data-section="matches" title="Connections">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Connections</span>
+        </button>
+        <button class="nav-button" data-section="missions" title="Missions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>
+          <span>Missions</span>
+        </button>
+        <button class="nav-button" data-section="privacy" title="Privacy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.68 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1v7z"/><path d="M9 12l2 2 4-4"/></svg>
+          <span>Privacy</span>
+        </button>
+      </nav>
+
+      <div class="privacy-note">
+        <strong>Privacy-first demo</strong>
+        <span>All data is simulated. Exact real-time locations are never shown to matches.</span>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="kicker">Agentic lifestyle companion</p>
+          <h2 id="page-title">My Routine Map</h2>
+          <p class="subtitle" id="page-subtitle">LifeLoop learns repeated movement patterns, then recommends people, places, and missions without exposing precise live location.</p>
+        </div>
+        <div class="toolbar">
+          <div class="select-wrap">
+            <select id="user-select" aria-label="Select demo user"></select>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+          <button class="ghost-button" id="rerun">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+            Recompute
+          </button>
+        </div>
+      </header>
+
+      <section id="routine" class="section active">
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Generalized Routine Zones</h3>
+              <span>No exact live location</span>
+            </div>
+            <div class="map" id="map"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Detected Loops</h3>
+              <span id="loop-count">0 routines</span>
+            </div>
+            <div class="routine-list" id="routine-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="summary" class="section">
+        <div class="grid">
+          <div class="panel pad">
+            <p class="summary-text" id="summary-text"></p>
+            <div class="tag-row" id="summary-tags"></div>
+            <div class="metric-row" id="metrics"></div>
+          </div>
+          <div class="grid three">
+            <div class="panel pad">
+              <div class="iconbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M9 13v2"/><path d="M15 13v2"/></svg></div>
+              <h3>Routine Understanding Agent</h3>
+              <p class="explain">Clusters repeated visits, dwell time, and time patterns into a private lifestyle profile.</p>
+            </div>
+            <div class="panel pad">
+              <div class="iconbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+              <h3>Mission Agent</h3>
+              <p class="explain">Turns familiar routes into small exploration goals that fit the user’s habits.</p>
+            </div>
+            <div class="panel pad">
+              <div class="iconbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.68 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1v7z"/></svg></div>
+              <h3>Privacy Agent</h3>
+              <p class="explain">Generalizes sensitive places and removes exact times before showing recommendations.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="matches" class="section">
+        <div class="card-grid" id="match-list"></div>
+      </section>
+
+      <section id="missions" class="section">
+        <div class="grid two">
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Generated Missions</h3>
+              <span id="points-total">0 possible points</span>
+            </div>
+            <div id="mission-list"></div>
+          </div>
+          <div class="panel pad">
+            <h3>Rewards Marketplace</h3>
+            <p class="explain">Merchant missions are only shown when they match a user’s lifestyle and route fit.</p>
+            <div class="reward-grid inset-top" id="reward-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="privacy" class="section">
+        <div class="panel pad">
+          <h3>Privacy & Safety Filter</h3>
+          <p class="explain">The app converts raw movement data into safer lifestyle signals before anything becomes social.</p>
+          <div class="privacy-grid inset-top" id="privacy-grid"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="src/data.js"></script>
+  <script src="src/icons.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>
