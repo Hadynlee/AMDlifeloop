@@ -6,6 +6,7 @@ from .routers.location import router as location_router
 from .routers.matching import router as matching_router
 from .routers.processing import router as processing_router
 from .routers.recommendations import router as recommendations_router
+from .routers.runtime import router as runtime_router
 from .routers.users import router as users_router
 
 app = FastAPI(
@@ -43,3 +44,4 @@ app.include_router(location_router)
 app.include_router(processing_router)
 app.include_router(matching_router)
 app.include_router(recommendations_router)
+app.include_router(runtime_router)

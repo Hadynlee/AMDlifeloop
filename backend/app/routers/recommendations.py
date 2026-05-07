@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 import psycopg
@@ -7,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..db import get_db
 from ..schemas import RecommendationOut
+from ..services.google_places import fetch_google_places_for_profile
+from ..services.providers import places_provider
 from ..services.recommendations import generate_recommendations
 
 router = APIRouter(tags=["recommendations"])
@@ -39,6 +42,94 @@ def _latest_profile(conn: psycopg.Connection, user_id: str) -> dict | None:
     return cur.fetchone()
 
 
+def _select_places(conn: psycopg.Connection) -> list[dict[str, Any]]:
+  with conn.cursor() as cur:
+    cur.execute(
+      """
+      SELECT place_id, google_place_id, name, latitude, longitude, cell_id,
+             category, rating, price_level, is_partner
+      FROM places
+      """
+    )
+    return cur.fetchall()
+
+
+def _upsert_live_places(conn: psycopg.Connection, live_places: list[dict[str, Any]]) -> None:
+  if not live_places:
+    return
+
+  google_ids = [str(place["google_place_id"]) for place in live_places if place.get("google_place_id")]
+  existing_by_google_id: dict[str, str] = {}
+
+  with conn.cursor() as cur:
+    if google_ids:
+      cur.execute(
+        """
+        SELECT place_id, google_place_id
+        FROM places
+        WHERE google_place_id = ANY(%s)
+        """,
+        (google_ids,),
+      )
+      existing_by_google_id = {
+        str(row["google_place_id"]): str(row["place_id"])
+        for row in cur.fetchall()
+        if row.get("google_place_id")
+      }
+
+    for place in live_places:
+      google_place_id = str(place.get("google_place_id") or "")
+      existing_place_id = existing_by_google_id.get(google_place_id)
+
+      if existing_place_id:
+        cur.execute(
+          """
+          UPDATE places
+          SET name = %s,
+              latitude = %s,
+              longitude = %s,
+              cell_id = %s,
+              category = %s,
+              rating = %s,
+              price_level = %s,
+              is_partner = %s
+          WHERE place_id = %s
+          """,
+          (
+            place["name"],
+            place["latitude"],
+            place["longitude"],
+            place.get("cell_id"),
+            place.get("category"),
+            place.get("rating"),
+            place.get("price_level"),
+            bool(place.get("is_partner", False)),
+            existing_place_id,
+          ),
+        )
+      else:
+        cur.execute(
+          """
+          INSERT INTO places (
+            google_place_id, name, latitude, longitude, cell_id,
+            category, rating, price_level, is_partner
+          )
+          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+          """,
+          (
+            google_place_id or None,
+            place["name"],
+            place["latitude"],
+            place["longitude"],
+            place.get("cell_id"),
+            place.get("category"),
+            place.get("rating"),
+            place.get("price_level"),
+            bool(place.get("is_partner", False)),
+          ),
+        )
+
+
 @router.post("/recommendations/recalculate/{user_id}", response_model=list[RecommendationOut])
 def recalculate_recommendations(user_id: UUID, conn: psycopg.Connection = Depends(get_db)) -> list[dict]:
   user_key = str(user_id)
@@ -53,14 +144,12 @@ def recalculate_recommendations(user_id: UUID, conn: psycopg.Connection = Depend
     cur.execute("SELECT place_id FROM recommendations WHERE user_id = %s AND visited = TRUE", (user_key,))
     visited = {str(row["place_id"]) for row in cur.fetchall()}
 
-    cur.execute(
-      """
-      SELECT place_id, google_place_id, name, latitude, longitude, cell_id,
-             category, rating, price_level, is_partner
-      FROM places
-      """
-    )
-    places = cur.fetchall()
+  if places_provider() == "google":
+    live_places = fetch_google_places_for_profile(conn, profile)
+    if live_places:
+      _upsert_live_places(conn, live_places)
+
+  places = _select_places(conn)
 
   generated = generate_recommendations(profile=profile, places=places, visited_place_ids=visited)
 

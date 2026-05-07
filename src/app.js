@@ -27,6 +27,12 @@ const deleteHistoryButton = document.querySelector("#delete-history");
 const state = {
   apiReady: false,
   usingFallback: false,
+  mapProvider: "mock",
+  placesProvider: "seeded",
+  googleMapsApiKey: null,
+  googleMap: null,
+  googleMapRoute: null,
+  googleMapMarkers: [],
   users: [],
   currentUser: null,
   privacy: null,
@@ -36,6 +42,57 @@ const state = {
   matches: [],
   recommendations: [],
 };
+
+let googleMapsLoadPromise = null;
+
+function clearGoogleMapOverlays() {
+  if (!state.googleMapMarkers.length) {
+    return;
+  }
+  state.googleMapMarkers.forEach(marker => marker.setMap(null));
+  state.googleMapMarkers = [];
+}
+
+function shouldUseGoogleMap() {
+  return state.mapProvider === "google" && Boolean(state.googleMapsApiKey);
+}
+
+async function ensureGoogleMapsLoaded() {
+  if (!shouldUseGoogleMap()) {
+    return false;
+  }
+
+  if (window.google && window.google.maps) {
+    return true;
+  }
+
+  if (!googleMapsLoadPromise) {
+    googleMapsLoadPromise = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector("script[data-google-maps='lifeloop']");
+      if (existingScript) {
+        existingScript.addEventListener("load", () => resolve(true), { once: true });
+        existingScript.addEventListener("error", () => reject(new Error("Google Maps script failed to load")), { once: true });
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(state.googleMapsApiKey)}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.dataset.googleMaps = "lifeloop";
+      script.addEventListener("load", () => resolve(true), { once: true });
+      script.addEventListener("error", () => reject(new Error("Google Maps script failed to load")), { once: true });
+      document.head.appendChild(script);
+    }).catch(() => {
+      state.mapProvider = "mock";
+      state.googleMapsApiKey = null;
+      googleMapsLoadPromise = null;
+      return false;
+    });
+  }
+
+  return googleMapsLoadPromise;
+}
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -145,9 +202,17 @@ async function checkApiHealth() {
     await apiRequest("/health");
     state.apiReady = true;
     state.usingFallback = false;
+
+    const runtimeConfig = await apiRequest("/runtime/config").catch(() => null);
+    state.mapProvider = runtimeConfig?.map_provider || "mock";
+    state.placesProvider = runtimeConfig?.places_provider || "seeded";
+    state.googleMapsApiKey = runtimeConfig?.google_maps_api_key || null;
   } catch {
     state.apiReady = false;
     state.usingFallback = true;
+    state.mapProvider = "mock";
+    state.placesProvider = "seeded";
+    state.googleMapsApiKey = null;
   }
 }
 
@@ -339,7 +404,7 @@ async function loadUserData(userId) {
     state.recommendations = [];
   }
 
-  if (state.matches.length === 0 || state.recommendations.length === 0) {
+  if (state.matches.length === 0 || state.recommendations.length === 0 || state.placesProvider === "google") {
     await recomputePipeline(userId, state.locationLogs.length === 0);
   } else {
     try {
@@ -350,8 +415,17 @@ async function loadUserData(userId) {
   }
 }
 
-function renderMap(persona) {
+function renderFallbackMap(persona) {
   const map = document.querySelector("#map");
+  map.classList.remove("google-mode");
+
+  if (state.googleMapRoute) {
+    state.googleMapRoute.setMap(null);
+    state.googleMapRoute = null;
+  }
+  clearGoogleMapOverlays();
+  state.googleMap = null;
+
   const points = persona.zones.map(zone => `${zone.x},${zone.y}`).join(" ");
   map.innerHTML = `
     <div class="road r1"></div>
@@ -368,6 +442,123 @@ function renderMap(persona) {
       </div>
     `).join("")}
   `;
+}
+
+function personaPath(persona) {
+  return persona.zones.map(zone => locationPointFromZone(zone));
+}
+
+function pathCenter(points) {
+  if (!points.length) {
+    return { lat: 1.3521, lng: 103.8198 };
+  }
+
+  const total = points.reduce(
+    (acc, point) => ({ lat: acc.lat + point.lat, lng: acc.lng + point.lng }),
+    { lat: 0, lng: 0 }
+  );
+  return { lat: total.lat / points.length, lng: total.lng / points.length };
+}
+
+function recommendationPins() {
+  return state.recommendations
+    .map(reco => ({
+      name: reco.place?.name || "Suggested Place",
+      latitude: reco.place?.latitude,
+      longitude: reco.place?.longitude,
+      score: reco.score,
+    }))
+    .filter(place => typeof place.latitude === "number" && typeof place.longitude === "number")
+    .slice(0, 12);
+}
+
+async function renderGoogleMap(persona) {
+  const loaded = await ensureGoogleMapsLoaded();
+  if (!loaded || !window.google || !window.google.maps) {
+    renderFallbackMap(persona);
+    return;
+  }
+
+  const mapElement = document.querySelector("#map");
+  mapElement.classList.add("google-mode");
+
+  if (!state.googleMap) {
+    mapElement.innerHTML = "";
+    state.googleMap = new window.google.maps.Map(mapElement, {
+      center: { lat: 1.3521, lng: 103.8198 },
+      zoom: 12,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+      clickableIcons: false,
+    });
+  }
+
+  if (state.googleMapRoute) {
+    state.googleMapRoute.setMap(null);
+    state.googleMapRoute = null;
+  }
+  clearGoogleMapOverlays();
+
+  const routePoints = personaPath(persona);
+  const center = pathCenter(routePoints);
+  state.googleMap.setCenter(center);
+
+  if (routePoints.length > 1) {
+    state.googleMapRoute = new window.google.maps.Polyline({
+      map: state.googleMap,
+      path: routePoints,
+      geodesic: true,
+      strokeColor: "#ee7b62",
+      strokeOpacity: 0.85,
+      strokeWeight: 4,
+    });
+  }
+
+  const bounds = new window.google.maps.LatLngBounds();
+
+  routePoints.forEach((point, index) => {
+    const zone = persona.zones[index];
+    const marker = new window.google.maps.Marker({
+      map: state.googleMap,
+      position: point,
+      title: zone?.label || "Routine zone",
+      label: String(index + 1),
+    });
+    state.googleMapMarkers.push(marker);
+    bounds.extend(point);
+  });
+
+  recommendationPins().forEach(place => {
+    const marker = new window.google.maps.Marker({
+      map: state.googleMap,
+      position: { lat: place.latitude, lng: place.longitude },
+      title: place.name,
+      icon: {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        scale: 5,
+        fillColor: "#2a7f62",
+        fillOpacity: 0.9,
+        strokeColor: "#ffffff",
+        strokeWeight: 1.2,
+      },
+    });
+    state.googleMapMarkers.push(marker);
+    bounds.extend({ lat: place.latitude, lng: place.longitude });
+  });
+
+  if (!bounds.isEmpty()) {
+    state.googleMap.fitBounds(bounds, 42);
+  }
+}
+
+function renderMap(persona) {
+  if (!shouldUseGoogleMap()) {
+    renderFallbackMap(persona);
+    return;
+  }
+
+  void renderGoogleMap(persona);
 }
 
 function renderRoutines(persona) {
@@ -421,7 +612,7 @@ function renderSummary(persona) {
 
   const sourceText = state.usingFallback
     ? "Backend offline: showing local demo mode with privacy-safe mock matching."
-    : "Backend connected: using FastAPI + PostgreSQL routine processing.";
+    : `Backend connected: using FastAPI + PostgreSQL routine processing. ${state.placesProvider === "google" ? "Google Places live mode." : "Seeded places mode."} ${shouldUseGoogleMap() ? "Google Maps mode." : "Mock map mode."}`;
   document.querySelector("#home-note").textContent = sourceText;
 }
 

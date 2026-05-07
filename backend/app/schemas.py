@@ -148,3 +148,9 @@ class RecommendationOut(BaseModel):
   clicked: bool
   visited: bool
   place: PlaceOut | None = None
+
+
+class RuntimeConfigOut(BaseModel):
+  map_provider: str
+  places_provider: str
+  google_maps_api_key: str | None = None

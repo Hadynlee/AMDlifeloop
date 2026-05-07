@@ -1,5 +1,6 @@
 services:
   db:
+    platform: linux/amd64
     image: postgis/postgis:16-3.4
     environment:
       POSTGRES_DB: lifeloop
@@ -22,7 +23,9 @@ services:
       DATABASE_URL: postgresql://lifeloop:lifeloop@db:5432/lifeloop
       GRID_SIZE_METERS: 350
       APP_ENV: docker
-      GOOGLE_PLACES_API_KEY: ""
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      GOOGLE_PLACES_SEARCH_RADIUS_METERS: ${GOOGLE_PLACES_SEARCH_RADIUS_METERS:-1500}
     depends_on:
       db:
         condition: service_healthy

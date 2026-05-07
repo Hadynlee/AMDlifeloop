@@ -75,6 +75,11 @@ docker compose exec -T api python -m app.seed --days 35
 docker compose down
 ```
 
+API key config is centralized in the project root `.env` file:
+- `GOOGLE_PLACES_API_KEY`: enables live Google Places recommendation sourcing
+- `GOOGLE_MAPS_API_KEY`: enables Google Maps rendering in the frontend (falls back to `GOOGLE_PLACES_API_KEY` when empty)
+- `GOOGLE_PLACES_SEARCH_RADIUS_METERS`: nearby-search radius for live place fetching
+
 ## API Endpoints
 
 ### Auth/User
@@ -153,8 +158,9 @@ final_score =
 
 ### MVP limitations
 
-- Frontend map is still a generalized visualization, not full map SDK rendering.
-- Google Places live integration is not yet wired; recommendations currently use seeded/mock places.
+- Frontend map and recommendations auto-switch by env keys:
+  - keys present: Google Maps + Google Places live mode
+  - keys missing: current mock map + seeded places
 - Mobile background GPS collection is simulated in this web MVP and seed data.
 - Auth is mock/simple and not production-grade.
 
