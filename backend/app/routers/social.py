@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 import hashlib
 from uuid import UUID
 
@@ -34,8 +36,103 @@ from ..services.social import (
   safe_icebreakers,
   weekly_social_windows,
 )
+from ..services.social_agent import generate_social_reply, social_agent_enabled
 
 router = APIRouter(tags=["social"])
+logger = logging.getLogger(__name__)
+
+
+def _safe_json(data: object) -> str:
+  return json.dumps(data, ensure_ascii=True, default=str, sort_keys=True)
+
+
+def _routine_answer_with_agent(question: str, mirror_payload: dict[str, object]) -> str:
+  if not social_agent_enabled():
+    return answer_routine_followup(question, mirror_payload)
+
+  system_prompt = (
+    "You are Routine Mirror, a privacy-safe routine coach. "
+    "Answer with direct, practical guidance based only on the provided weekly summary context. "
+    "Do not invent metrics, places, or dates. Keep replies to 2-5 short sentences."
+  )
+  user_prompt = (
+    f"User question:\n{question.strip()}\n\n"
+    f"Routine context JSON:\n{_safe_json(mirror_payload)}\n\n"
+    "Focus on drift, energy windows, and habit consistency when relevant."
+  )
+  try:
+    return generate_social_reply(system_prompt, user_prompt, temperature=0.4, max_output_tokens=260)
+  except Exception as exc:
+    logger.warning("routine-agent-fallback: %s", exc)
+    return answer_routine_followup(question, mirror_payload)
+
+
+def _match_answer_with_agent(question: str, context: dict[str, object]) -> str:
+  if not social_agent_enabled():
+    return answer_match_followup(question, context)
+
+  system_prompt = (
+    "You are Match Coach for a privacy-first social app. "
+    "Explain compatibility clearly, keep advice safe for first meetings, and avoid over-claiming. "
+    "Use only supplied context. Keep replies to 2-5 short sentences."
+  )
+  user_prompt = (
+    f"User question:\n{question.strip()}\n\n"
+    f"Match context JSON:\n{_safe_json(context)}\n\n"
+    "Prioritize safe public meetups and practical next steps."
+  )
+  try:
+    return generate_social_reply(system_prompt, user_prompt, temperature=0.45, max_output_tokens=280)
+  except Exception as exc:
+    logger.warning("match-agent-fallback: %s", exc)
+    return answer_match_followup(question, context)
+
+
+def _friend_reply_with_agent(
+  *,
+  user_id: str,
+  friend_id: str,
+  user_name: str,
+  friend_name: str,
+  user_message: str,
+  recent_messages: list[dict],
+  weekly_windows: list[dict],
+  place_scout: list[dict],
+  incoming_safety: dict[str, object],
+) -> str | None:
+  if not social_agent_enabled():
+    return None
+
+  transcript_lines: list[str] = []
+  for message in recent_messages[-8:]:
+    sender = str(message.get("sender_user_id") or "")
+    speaker = friend_name if sender == friend_id else user_name if sender == user_id else "Member"
+    body = str(message.get("body") or "").strip()
+    if body:
+      transcript_lines.append(f"{speaker}: {body}")
+
+  windows = [str(item.get("label")) for item in weekly_windows if item.get("label")]
+  place_names = [str(item.get("name")) for item in place_scout if item.get("name")]
+
+  system_prompt = (
+    "You are chatting as a matched friend inside LifeLoop. "
+    "Reply naturally in first person as the friend, with concise 1-3 sentences. "
+    "Never request secrecy, money, explicit content, or private-home first meetups. "
+    "If the incoming message is risky, redirect to a safer public daytime alternative."
+  )
+  user_prompt = (
+    f"You are {friend_name}. The other person is {user_name}.\n"
+    f"Most recent user message:\n{user_message.strip()}\n\n"
+    f"Recent transcript:\n{chr(10).join(transcript_lines) if transcript_lines else '(no prior messages)'}\n\n"
+    f"Suggested social windows: {', '.join(windows[:3]) if windows else 'none'}\n"
+    f"Suggested public places: {', '.join(place_names[:3]) if place_names else 'none'}\n"
+    f"Risk flags on incoming message: {_safe_json(incoming_safety)}"
+  )
+  try:
+    return generate_social_reply(system_prompt, user_prompt, temperature=0.65, max_output_tokens=140)
+  except Exception as exc:
+    logger.warning("friend-agent-skip: %s", exc)
+    return None
 
 
 def _latest_profiles(conn: psycopg.Connection) -> dict[str, dict]:
@@ -465,6 +562,60 @@ def _chat_messages(conn: psycopg.Connection, connection_id: str) -> list[dict]:
   return output
 
 
+def _normalize_chat_row(row: dict) -> dict:
+  alternatives = row.get("safety_alternatives")
+  if not isinstance(alternatives, list):
+    alternatives = []
+
+  return {
+    "message_id": row["message_id"],
+    "connection_id": row["connection_id"],
+    "sender_user_id": row["sender_user_id"],
+    "body": row["body"],
+    "safety_flagged": row["safety_flagged"],
+    "safety_reason": row["safety_reason"],
+    "safety_alternatives": alternatives,
+    "created_at": row["created_at"],
+  }
+
+
+def _insert_chat_message(
+  conn: psycopg.Connection,
+  *,
+  connection_id: str,
+  sender_user_id: str,
+  body: str,
+  safety: dict[str, object],
+) -> dict:
+  with conn.cursor() as cur:
+    cur.execute(
+      """
+      INSERT INTO chat_messages (
+        connection_id, sender_user_id, body,
+        safety_flagged, safety_reason, safety_alternatives
+      )
+      VALUES (%s, %s, %s, %s, %s, %s)
+      RETURNING message_id, connection_id, sender_user_id, body,
+                safety_flagged, safety_reason,
+                COALESCE(safety_alternatives, '[]'::jsonb) AS safety_alternatives,
+                created_at
+      """,
+      (
+        connection_id,
+        sender_user_id,
+        body,
+        bool(safety.get("flagged")),
+        safety.get("reason"),
+        Json(safety.get("alternatives") or []),
+      ),
+    )
+    row = cur.fetchone()
+
+  if not row:
+    raise HTTPException(status_code=500, detail="Failed to save message")
+  return _normalize_chat_row(row)
+
+
 @router.get("/social/chats/{user_id}/{friend_user_id}", response_model=ChatThreadOut)
 def get_chat_thread(user_id: UUID, friend_user_id: UUID, conn: psycopg.Connection = Depends(get_db)) -> dict:
   user_key = str(user_id)
@@ -507,49 +658,54 @@ def send_chat_message(
   if not connection:
     raise HTTPException(status_code=404, detail="No mutual friend connection yet")
 
-  safety = evaluate_safety_message(payload.body)
+  connection_id = str(connection["connection_id"])
+  body = payload.body.strip()
+  safety = evaluate_safety_message(body)
 
-  with conn.cursor() as cur:
-    cur.execute(
-      """
-      INSERT INTO chat_messages (
-        connection_id, sender_user_id, body,
-        safety_flagged, safety_reason, safety_alternatives
+  saved = _insert_chat_message(
+    conn,
+    connection_id=connection_id,
+    sender_user_id=sender_key,
+    body=body,
+    safety=safety,
+  )
+
+  if sender_key == user_key:
+    try:
+      profiles = _latest_profiles(conn)
+      places = _load_places(conn)
+      user_name = _load_user_name(conn, user_key)
+      friend_name = _load_user_name(conn, friend_key)
+      recent_messages = _chat_messages(conn, connection_id)
+      weekly_windows = _weekly_windows_for_pair(profiles, user_key, friend_key)
+      place_scout = _place_scout_for_pair(profiles, places, user_key, friend_key)
+
+      friend_reply = _friend_reply_with_agent(
+        user_id=user_key,
+        friend_id=friend_key,
+        user_name=user_name,
+        friend_name=friend_name,
+        user_message=body,
+        recent_messages=recent_messages,
+        weekly_windows=weekly_windows,
+        place_scout=place_scout,
+        incoming_safety=safety,
       )
-      VALUES (%s, %s, %s, %s, %s, %s)
-      RETURNING message_id, connection_id, sender_user_id, body,
-                safety_flagged, safety_reason,
-                COALESCE(safety_alternatives, '[]'::jsonb) AS safety_alternatives,
-                created_at
-      """,
-      (
-        str(connection["connection_id"]),
-        sender_key,
-        payload.body.strip(),
-        bool(safety["flagged"]),
-        safety["reason"],
-        Json(safety["alternatives"]),
-      ),
-    )
-    row = cur.fetchone()
+      if friend_reply:
+        reply_body = friend_reply.strip()
+        if reply_body:
+          reply_safety = evaluate_safety_message(reply_body)
+          _insert_chat_message(
+            conn,
+            connection_id=connection_id,
+            sender_user_id=friend_key,
+            body=reply_body,
+            safety=reply_safety,
+          )
+    except Exception as exc:
+      logger.warning("friend-agent-reply-skipped: %s", exc)
 
-  if not row:
-    raise HTTPException(status_code=500, detail="Failed to save message")
-
-  alternatives = row.get("safety_alternatives")
-  if not isinstance(alternatives, list):
-    alternatives = []
-
-  return {
-    "message_id": row["message_id"],
-    "connection_id": row["connection_id"],
-    "sender_user_id": row["sender_user_id"],
-    "body": row["body"],
-    "safety_flagged": row["safety_flagged"],
-    "safety_reason": row["safety_reason"],
-    "safety_alternatives": alternatives,
-    "created_at": row["created_at"],
-  }
+  return saved
 
 
 @router.get("/social/routine-mirror/{user_id}", response_model=RoutineMirrorOut)
@@ -593,7 +749,7 @@ def ask_routine_mirror(
   conn: psycopg.Connection = Depends(get_db),
 ) -> dict:
   mirror = get_routine_mirror(user_id, conn)
-  answer = answer_routine_followup(payload.question, mirror)
+  answer = _routine_answer_with_agent(payload.question, mirror)
   return {"answer": answer}
 
 
@@ -653,4 +809,4 @@ def ask_match_coach(
     "first_meet_activities": first_meet_activity_types(profile_user, profile_other),
   }
 
-  return {"answer": answer_match_followup(payload.question, context)}
+  return {"answer": _match_answer_with_agent(payload.question, context)}

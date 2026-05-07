@@ -1335,8 +1335,12 @@ async function handleFriendSend() {
         },
       });
 
-      if (state.activeThread) {
-        state.activeThread.messages.push(message);
+      try {
+        await loadActiveThread(state.activeFriendId);
+      } catch (threadError) {
+        if (state.activeThread) {
+          state.activeThread.messages.push(message);
+        }
       }
 
       if (message.safety_flagged) {

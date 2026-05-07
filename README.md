@@ -76,7 +76,11 @@ docker compose down
 ```
 
 API key config is centralized in the project root `.env` file:
-- `SOCIAL_AGENT_API_KEY`: single key field reserved for social AI services (Match Coach, Routine Mirror follow-up, etc.)
+- `SOCIAL_AGENT_API_KEY`: primary key used for social AI services (Routine Mirror follow-up, Match Coach follow-up, friend chat AI replies)
+- `OPENAI_API_KEY`: fallback key if `SOCIAL_AGENT_API_KEY` is empty
+- `SOCIAL_AGENT_MODEL`: model name for social AI calls (default: `gpt-4.1-mini`)
+- `SOCIAL_AGENT_BASE_URL`: model API base URL (default: `https://api.openai.com/v1`)
+- `SOCIAL_AGENT_TIMEOUT_SECONDS`: timeout for social AI requests (default: `20`)
 - `GOOGLE_PLACES_API_KEY`: enables live Google Places recommendation sourcing
 - `GOOGLE_MAPS_API_KEY`: enables Google Maps rendering in the frontend (falls back to `GOOGLE_PLACES_API_KEY` when empty)
 - `GOOGLE_PLACES_SEARCH_RADIUS_METERS`: nearby-search radius for live place fetching

@@ -332,8 +332,8 @@ def answer_routine_followup(question: str, mirror_payload: dict[str, Any]) -> st
     return "Start with one repeated weekday activity and one weekend activity to build baseline habits."
 
   return (
-    "Routine Mirror can explain drift, energy windows, and habit consistency. "
-    "Ask about one category or one week-to-week change for a focused answer."
+    "I can break this down by routine drift, energy windows, or habit consistency. "
+    "Share one week-to-week change you want to improve."
   )
 
 
