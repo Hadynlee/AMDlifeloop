@@ -2,6 +2,18 @@ const STATIC_DATA = window.LIFELOOP_DATA;
 const icons = window.LIFELOOP_ICONS;
 
 const API_BASE = STATIC_DATA.apiBase || `${window.location.protocol}//${window.location.hostname}:8000`;
+const SOCIAL_STORAGE_KEY = "lifeloop-social-state-v3";
+const MAX_GALLERY_PHOTOS = 4;
+const AVATAR_IMAGE_OPTIONS = {
+  maxDimension: 720,
+  quality: 0.84,
+  maxLength: 260000,
+};
+const GALLERY_IMAGE_OPTIONS = {
+  maxDimension: 1280,
+  quality: 0.82,
+  maxLength: 460000,
+};
 
 const userSelect = document.querySelector("#user-select");
 const navButtons = document.querySelectorAll(".nav-button");
@@ -23,6 +35,17 @@ const matchModalClose = document.querySelector("#match-modal-close");
 const privacyForm = document.querySelector("#privacy-settings-form");
 const privacyMessage = document.querySelector("#privacy-message");
 const deleteHistoryButton = document.querySelector("#delete-history");
+const profileEditorElement = document.querySelector("#profile-editor");
+const profileMessageElement = document.querySelector("#profile-message");
+const connectionsList = document.querySelector("#connections-list");
+const incomingRequestsList = document.querySelector("#incoming-requests-list");
+const outgoingRequestsList = document.querySelector("#outgoing-requests-list");
+const zoomModal = document.querySelector("#profile-zoom-modal");
+const zoomImage = document.querySelector("#profile-zoom-image");
+const zoomClose = document.querySelector("#profile-zoom-close");
+const publicProfileModal = document.querySelector("#public-profile-modal");
+const publicProfileContent = document.querySelector("#public-profile-content");
+const publicProfileClose = document.querySelector("#public-profile-close");
 
 const state = {
   apiReady: false,
@@ -41,9 +64,12 @@ const state = {
   locationLogs: [],
   matches: [],
   recommendations: [],
+  social: {},
+  activeProfileView: "connections",
 };
 
 let googleMapsLoadPromise = null;
+let profileMessageTimer = null;
 
 function clearGoogleMapOverlays() {
   if (!state.googleMapMarkers.length) {
@@ -103,6 +129,524 @@ function formatScore(value) {
     return "0%";
   }
   return `${Math.round(value * 100)}%`;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function normalizePersonId(value) {
+  return String(value || "").trim();
+}
+
+function sanitizeImageDataUrl(value, maxLength) {
+  const dataUrl = String(value || "");
+  if (!dataUrl.startsWith("data:image/")) {
+    return "";
+  }
+  return dataUrl.length <= maxLength ? dataUrl : "";
+}
+
+function removeFromArray(list, value) {
+  const index = list.indexOf(value);
+  if (index >= 0) {
+    list.splice(index, 1);
+  }
+}
+
+function sanitizeIdList(list, userId) {
+  const seen = new Set();
+  return (Array.isArray(list) ? list : [])
+    .map(item => normalizePersonId(item))
+    .filter(item => item && item !== userId)
+    .filter(item => {
+      if (seen.has(item)) {
+        return false;
+      }
+      seen.add(item);
+      return true;
+    });
+}
+
+function currentSocialUserId() {
+  return normalizePersonId(state.currentUser?.user_id);
+}
+
+function knownUserById(userId) {
+  return state.users.find(user => normalizePersonId(user.user_id) === userId) || null;
+}
+
+function staticUserById(userId) {
+  return STATIC_DATA.users.find(user => normalizePersonId(user.id) === userId) || null;
+}
+
+function matchTargetId(match) {
+  const value = normalizePersonId(match?.user_id_2 || match?.other_user_name || match?.match_id);
+  return value || "";
+}
+
+function matchTargetName(match) {
+  const fromUsers = knownUserById(normalizePersonId(match?.user_id_2));
+  if (fromUsers?.name) {
+    return fromUsers.name;
+  }
+  if (match?.other_user_name) {
+    return String(match.other_user_name);
+  }
+  return `User ${String(matchTargetId(match)).slice(0, 6) || "?"}`;
+}
+
+function defaultSocialRecord(userId, fallbackName = "User") {
+  const staticUser = staticUserById(userId);
+  const knownUser = knownUserById(userId);
+  const displayName = staticUser?.name || knownUser?.name || fallbackName || "User";
+  const bio = staticUser?.persona
+    ? `Lifestyle: ${String(staticUser.persona).slice(0, 1).toUpperCase()}${String(staticUser.persona).slice(1)}.`
+    : "Lifestyle explorer.";
+  return {
+    profile: {
+      displayName: displayName.slice(0, 42),
+      bio: bio.slice(0, 220),
+      avatarDataUrl: "",
+    },
+    gallery: [],
+    connections: [],
+    incomingRequests: [],
+    outgoingRequests: [],
+    updatedAt: nowIso(),
+  };
+}
+
+function connectUsers(records, leftId, rightId) {
+  if (!leftId || !rightId || leftId === rightId || !records[leftId] || !records[rightId]) {
+    return;
+  }
+  if (!records[leftId].connections.includes(rightId)) {
+    records[leftId].connections.push(rightId);
+  }
+  if (!records[rightId].connections.includes(leftId)) {
+    records[rightId].connections.push(leftId);
+  }
+  removeFromArray(records[leftId].incomingRequests, rightId);
+  removeFromArray(records[leftId].outgoingRequests, rightId);
+  removeFromArray(records[rightId].incomingRequests, leftId);
+  removeFromArray(records[rightId].outgoingRequests, leftId);
+}
+
+function createRequest(records, fromId, toId) {
+  if (!fromId || !toId || fromId === toId || !records[fromId] || !records[toId]) {
+    return;
+  }
+  if (records[fromId].connections.includes(toId)) {
+    return;
+  }
+  if (records[toId].incomingRequests.includes(fromId)) {
+    return;
+  }
+  if (!records[fromId].outgoingRequests.includes(toId)) {
+    records[fromId].outgoingRequests.push(toId);
+  }
+  if (!records[toId].incomingRequests.includes(fromId)) {
+    records[toId].incomingRequests.push(fromId);
+  }
+}
+
+function createDefaultSocialState() {
+  const records = {};
+  STATIC_DATA.users.forEach(user => {
+    const userId = normalizePersonId(user.id);
+    records[userId] = defaultSocialRecord(userId, user.name);
+  });
+
+  if (records.jia && records.arjun) {
+    connectUsers(records, "jia", "arjun");
+  }
+  if (records.mei && records.sara) {
+    connectUsers(records, "mei", "sara");
+  }
+  if (records.mei && records.jia) {
+    createRequest(records, "mei", "jia");
+  }
+  if (records.sara && records.jia) {
+    createRequest(records, "sara", "jia");
+  }
+
+  return records;
+}
+
+function normalizeSocialState(rawState) {
+  const defaults = createDefaultSocialState();
+  const source = rawState && typeof rawState === "object" ? rawState : {};
+  const social = {};
+  const allIds = new Set([...Object.keys(defaults), ...Object.keys(source)]);
+
+  allIds.forEach(item => {
+    const userId = normalizePersonId(item);
+    if (!userId) {
+      return;
+    }
+    const incoming = source[userId] && typeof source[userId] === "object" ? source[userId] : {};
+    const fallbackName = staticUserById(userId)?.name || knownUserById(userId)?.name || "User";
+    const fallback = defaults[userId] || defaultSocialRecord(userId, fallbackName);
+    const profile = incoming.profile && typeof incoming.profile === "object" ? incoming.profile : {};
+
+    social[userId] = {
+      profile: {
+        displayName: String(profile.displayName || fallback.profile.displayName).slice(0, 42),
+        bio: String(profile.bio || fallback.profile.bio).slice(0, 220),
+        avatarDataUrl: sanitizeImageDataUrl(profile.avatarDataUrl, AVATAR_IMAGE_OPTIONS.maxLength * 2),
+      },
+      gallery: (Array.isArray(incoming.gallery) ? incoming.gallery : [])
+        .map(item => sanitizeImageDataUrl(item, GALLERY_IMAGE_OPTIONS.maxLength * 2))
+        .filter(Boolean)
+        .slice(0, MAX_GALLERY_PHOTOS),
+      connections: sanitizeIdList(incoming.connections, userId),
+      incomingRequests: sanitizeIdList(incoming.incomingRequests, userId),
+      outgoingRequests: sanitizeIdList(incoming.outgoingRequests, userId),
+      updatedAt: String(incoming.updatedAt || fallback.updatedAt || nowIso()),
+    };
+  });
+
+  Object.keys(social).forEach(userId => {
+    social[userId].connections.forEach(otherId => {
+      if (!social[otherId]) {
+        social[otherId] = defaultSocialRecord(otherId, staticUserById(otherId)?.name || "User");
+      }
+      if (!social[otherId].connections.includes(userId)) {
+        social[otherId].connections.push(userId);
+      }
+    });
+  });
+
+  Object.keys(social).forEach(userId => {
+    social[userId].incomingRequests = social[userId].incomingRequests.filter(otherId => !social[userId].connections.includes(otherId));
+    social[userId].outgoingRequests = social[userId].outgoingRequests.filter(otherId => !social[userId].connections.includes(otherId));
+  });
+
+  Object.keys(social).forEach(userId => {
+    social[userId].incomingRequests.forEach(fromId => {
+      if (!social[fromId]) {
+        social[fromId] = defaultSocialRecord(fromId, "User");
+      }
+      if (!social[fromId].outgoingRequests.includes(userId)) {
+        social[fromId].outgoingRequests.push(userId);
+      }
+    });
+    social[userId].outgoingRequests.forEach(toId => {
+      if (!social[toId]) {
+        social[toId] = defaultSocialRecord(toId, "User");
+      }
+      if (!social[toId].incomingRequests.includes(userId)) {
+        social[toId].incomingRequests.push(userId);
+      }
+    });
+  });
+
+  return social;
+}
+
+function loadSocialState() {
+  try {
+    const raw = localStorage.getItem(SOCIAL_STORAGE_KEY);
+    if (!raw) {
+      return createDefaultSocialState();
+    }
+    return normalizeSocialState(JSON.parse(raw));
+  } catch {
+    return createDefaultSocialState();
+  }
+}
+
+function saveSocialState() {
+  try {
+    localStorage.setItem(SOCIAL_STORAGE_KEY, JSON.stringify(state.social));
+    return true;
+  } catch (error) {
+    console.warn("Unable to persist social state.", error);
+    return false;
+  }
+}
+
+function getSocialRecord(userId, fallbackName = "User") {
+  const cleanId = normalizePersonId(userId);
+  if (!cleanId) {
+    return defaultSocialRecord("anonymous", fallbackName);
+  }
+  if (!state.social[cleanId]) {
+    state.social[cleanId] = defaultSocialRecord(cleanId, fallbackName);
+  }
+  return state.social[cleanId];
+}
+
+function getDisplayName(userId, fallbackName = "User") {
+  const cleanId = normalizePersonId(userId);
+  const profileName = getSocialRecord(cleanId, fallbackName).profile.displayName;
+  if (profileName && profileName.trim()) {
+    return profileName.trim();
+  }
+  const knownUser = knownUserById(cleanId);
+  if (knownUser?.name) {
+    return knownUser.name;
+  }
+  const staticUser = staticUserById(cleanId);
+  if (staticUser?.name) {
+    return staticUser.name;
+  }
+  return fallbackName || "User";
+}
+
+function avatarMarkup(userId, className = "mini-avatar", fallbackName = "User") {
+  const profile = getSocialRecord(userId, fallbackName).profile;
+  const fallbackLetter = getDisplayName(userId, fallbackName).charAt(0).toUpperCase() || "U";
+  if (profile.avatarDataUrl) {
+    return `<div class="${className} has-image"><img src="${escapeHtml(profile.avatarDataUrl)}" alt="${escapeHtml(getDisplayName(userId, fallbackName))}"></div>`;
+  }
+  return `<div class="${className}">${escapeHtml(fallbackLetter)}</div>`;
+}
+
+function relationshipWith(userId, otherId) {
+  const social = getSocialRecord(userId);
+  if (social.connections.includes(otherId)) {
+    return "connected";
+  }
+  if (social.incomingRequests.includes(otherId)) {
+    return "incoming";
+  }
+  if (social.outgoingRequests.includes(otherId)) {
+    return "outgoing";
+  }
+  return "none";
+}
+
+function ensureSocialCounterparty(userId, fallbackName) {
+  getSocialRecord(userId, fallbackName);
+}
+
+function sendRequest(userId, otherId, otherName = "User") {
+  ensureSocialCounterparty(userId, getDisplayName(userId));
+  ensureSocialCounterparty(otherId, otherName);
+  const relationship = relationshipWith(userId, otherId);
+
+  if (relationship === "connected") {
+    return "You are already connected.";
+  }
+  if (relationship === "outgoing") {
+    return `Request already sent to ${getDisplayName(otherId, otherName)}.`;
+  }
+  if (relationship === "incoming") {
+    connectUsers(state.social, userId, otherId);
+    saveSocialState();
+    return `Connection accepted with ${getDisplayName(otherId, otherName)}.`;
+  }
+
+  const userRecord = getSocialRecord(userId);
+  const otherRecord = getSocialRecord(otherId, otherName);
+  if (!userRecord.outgoingRequests.includes(otherId)) {
+    userRecord.outgoingRequests.push(otherId);
+  }
+  if (!otherRecord.incomingRequests.includes(userId)) {
+    otherRecord.incomingRequests.push(userId);
+  }
+  saveSocialState();
+  return `Connection request sent to ${getDisplayName(otherId, otherName)}.`;
+}
+
+function acceptRequest(userId, requesterId) {
+  connectUsers(state.social, userId, requesterId);
+  saveSocialState();
+  return `Connected with ${getDisplayName(requesterId)}.`;
+}
+
+function declineRequest(userId, requesterId) {
+  removeFromArray(getSocialRecord(userId).incomingRequests, requesterId);
+  removeFromArray(getSocialRecord(requesterId).outgoingRequests, userId);
+  saveSocialState();
+  return `Request declined from ${getDisplayName(requesterId)}.`;
+}
+
+function cancelRequest(userId, recipientId) {
+  removeFromArray(getSocialRecord(userId).outgoingRequests, recipientId);
+  removeFromArray(getSocialRecord(recipientId).incomingRequests, userId);
+  saveSocialState();
+  return `Request to ${getDisplayName(recipientId)} canceled.`;
+}
+
+function removeConnection(userId, otherId) {
+  removeFromArray(getSocialRecord(userId).connections, otherId);
+  removeFromArray(getSocialRecord(otherId).connections, userId);
+  saveSocialState();
+  return `${getDisplayName(otherId)} removed from your connections.`;
+}
+
+function setProfileMessage(text, type = "success") {
+  if (!profileMessageElement) {
+    return;
+  }
+  profileMessageElement.textContent = text;
+  profileMessageElement.classList.toggle("error", type === "error");
+  if (profileMessageTimer) {
+    clearTimeout(profileMessageTimer);
+  }
+  profileMessageTimer = setTimeout(() => {
+    profileMessageElement.textContent = "";
+    profileMessageElement.classList.remove("error");
+  }, 2200);
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = event => resolve(String(event.target?.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function readImageElement(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to decode image."));
+    image.src = dataUrl;
+  });
+}
+
+function optimizeDataUrlImage(image, options) {
+  const maxDimension = Math.max(240, Number(options.maxDimension || 1280));
+  const minQuality = 0.52;
+  let quality = Math.min(0.92, Math.max(minQuality, Number(options.quality || 0.82)));
+  const targetMaxLength = Math.max(120000, Number(options.maxLength || 420000));
+
+  const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
+  let width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
+  let height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return "";
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    canvas.width = width;
+    canvas.height = height;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
+
+    const output = canvas.toDataURL("image/jpeg", quality);
+    if (output.length <= targetMaxLength || attempt === 7) {
+      return output;
+    }
+
+    if (quality > minQuality + 0.04) {
+      quality -= 0.08;
+      continue;
+    }
+
+    width = Math.max(180, Math.round(width * 0.88));
+    height = Math.max(180, Math.round(height * 0.88));
+  }
+
+  return "";
+}
+
+async function readOptimizedImage(file, options) {
+  const original = await readFileAsDataUrl(file);
+  const image = await readImageElement(original);
+  const optimized = optimizeDataUrlImage(image, options);
+  return optimized || original;
+}
+
+function galleryItemsMarkup(userId, compact = false) {
+  const gallery = getSocialRecord(userId).gallery || [];
+  if (!gallery.length) {
+    return `<div class="empty-state small-empty">No gallery photos yet.</div>`;
+  }
+  return `
+    <div class="gallery-grid ${compact ? "compact" : ""}">
+      ${gallery.map((item, index) => `
+        <button type="button" class="gallery-tile" data-zoom-src="${escapeHtml(item)}" data-zoom-alt="${escapeHtml(getDisplayName(userId))} photo ${index + 1}">
+          <img src="${escapeHtml(item)}" alt="${escapeHtml(getDisplayName(userId))} gallery photo ${index + 1}">
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function openImageZoom(src, alt = "Image preview") {
+  if (!zoomModal || !zoomImage) {
+    return;
+  }
+  zoomImage.src = src;
+  zoomImage.alt = alt;
+  zoomModal.classList.add("visible");
+  zoomModal.setAttribute("aria-hidden", "false");
+}
+
+function closeProfileZoom() {
+  if (!zoomModal) {
+    return;
+  }
+  zoomModal.classList.remove("visible");
+  zoomModal.setAttribute("aria-hidden", "true");
+}
+
+function openPublicProfile(userId, fallbackName = "User") {
+  if (!publicProfileModal || !publicProfileContent) {
+    return;
+  }
+  const social = getSocialRecord(userId, fallbackName);
+  const bio = social.profile.bio ? escapeHtml(social.profile.bio) : "No bio yet.";
+  publicProfileContent.innerHTML = `
+    <div class="public-head">
+      ${avatarMarkup(userId, "mini-avatar public-avatar", fallbackName)}
+      <div>
+        <h3>${escapeHtml(getDisplayName(userId, fallbackName))}</h3>
+        <p class="explain">${bio}</p>
+      </div>
+    </div>
+    <div class="public-stats">
+      <span><strong>${social.connections.length}</strong> connections</span>
+      <span><strong>${social.incomingRequests.length + social.outgoingRequests.length}</strong> requests</span>
+    </div>
+    <h4 class="public-gallery-title">Photo Gallery</h4>
+    ${galleryItemsMarkup(userId, true)}
+  `;
+  publicProfileModal.classList.add("visible");
+  publicProfileModal.setAttribute("aria-hidden", "false");
+}
+
+function closePublicProfile() {
+  if (!publicProfileModal) {
+    return;
+  }
+  publicProfileModal.classList.remove("visible");
+  publicProfileModal.setAttribute("aria-hidden", "true");
+}
+
+function setActiveProfileView(view, jumpToPane = false) {
+  if (view !== "connections" && view !== "requests") {
+    return;
+  }
+  state.activeProfileView = view;
+  renderProfile();
+  if (jumpToPane) {
+    const targetPane = document.querySelector(view === "connections" ? "#profile-connections-pane" : "#profile-requests-pane");
+    if (targetPane) {
+      requestAnimationFrame(() => {
+        targetPane.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }
 }
 
 function fallbackUsers() {
@@ -221,7 +765,7 @@ function populateUserSelect() {
   state.users.forEach(user => {
     const option = document.createElement("option");
     option.value = user.user_id;
-    option.textContent = user.name;
+    option.textContent = getDisplayName(user.user_id, user.name || "User");
     userSelect.appendChild(option);
   });
 
@@ -616,30 +1160,49 @@ function renderSummary(persona) {
   document.querySelector("#home-note").textContent = sourceText;
 }
 
-function renderMatchCard(match) {
+function renderMatchCard(match, currentUserId) {
   const tags = [
     `${formatScore(match.route_similarity)} route`,
     `${formatScore(match.time_similarity)} time`,
     `${formatScore(match.place_similarity)} place`,
   ];
-  const name = match.other_user_name || `User ${String(match.user_id_2).slice(0, 6)}`;
+  const targetId = matchTargetId(match);
+  const name = matchTargetName(match);
+  ensureSocialCounterparty(targetId, name);
+  const relationship = currentUserId ? relationshipWith(currentUserId, targetId) : "none";
+  const isGuest = !currentUserId;
+  const actionLabel = relationship === "connected"
+    ? "Connected"
+    : relationship === "outgoing"
+      ? "Request sent"
+      : relationship === "incoming"
+        ? "Accept request"
+        : "Send safe intro";
+  const disabled = isGuest || relationship === "connected" || relationship === "outgoing";
+  const relationTag = relationship === "incoming"
+    ? `<span class="tag gold">Requested you</span>`
+    : relationship === "outgoing"
+      ? `<span class="tag gold">Pending</span>`
+      : relationship === "connected"
+        ? `<span class="tag gold">In connections</span>`
+        : "";
 
   return `
     <article class="card" data-match-id="${match.match_id}">
       <div class="avatar-row">
-        <div class="avatar-name">
-          <div class="avatar">${name.slice(0, 1)}</div>
-          <div>
-            <h3>${name}</h3>
-            <p class="explain">Privacy-safe profile</p>
-          </div>
-        </div>
+        <button class="avatar-name open-profile" type="button" data-open-profile="${escapeHtml(targetId)}" data-open-profile-name="${escapeHtml(name)}">
+          ${avatarMarkup(targetId, "avatar", name)}
+          <span>
+            <strong>${escapeHtml(getDisplayName(targetId, name))}</strong>
+            <small>Tap to view gallery</small>
+          </span>
+        </button>
         <div class="score">${formatScore(match.final_score)}</div>
       </div>
-      <div class="tag-row">${tags.map(tag => `<span class="tag blue">${tag}</span>`).join("")}</div>
+      <div class="tag-row">${tags.map(tag => `<span class="tag blue">${tag}</span>`).join("")}${relationTag}</div>
       <p class="explain">${match.explanation}</p>
       <div class="card-actions">
-        <button class="connect" data-action="like" data-match-id="${match.match_id}">${icons.send} Like</button>
+        <button class="connect ${disabled ? "secondary" : ""}" data-action="connect-request" data-target-id="${escapeHtml(targetId)}" data-target-name="${escapeHtml(name)}" ${disabled ? "disabled" : ""}>${icons.send} ${isGuest ? "Login to connect" : actionLabel}</button>
         <button class="connect secondary" data-action="detail" data-match-id="${match.match_id}">View detail</button>
         <button class="connect secondary" data-action="skip" data-match-id="${match.match_id}">Skip</button>
       </div>
@@ -650,7 +1213,8 @@ function renderMatchCard(match) {
 function renderMatches(persona) {
   const fallbackMatches = fallbackMatchesForPersona(persona);
   const records = state.matches.length ? state.matches : fallbackMatches;
-  document.querySelector("#match-list").innerHTML = records.map(renderMatchCard).join("");
+  const currentUserId = currentSocialUserId();
+  document.querySelector("#match-list").innerHTML = records.map(match => renderMatchCard(match, currentUserId)).join("");
 
   document.querySelectorAll("[data-action='detail']").forEach(button => {
     button.addEventListener("click", () => {
@@ -673,10 +1237,17 @@ function renderMatches(persona) {
     });
   });
 
-  document.querySelectorAll("[data-action='like']").forEach(button => {
+  document.querySelectorAll("[data-action='connect-request']").forEach(button => {
     button.addEventListener("click", () => {
-      button.textContent = "Liked";
-      button.disabled = true;
+      const targetId = normalizePersonId(button.dataset.targetId);
+      if (!currentUserId || !targetId) {
+        return;
+      }
+      const targetName = button.dataset.targetName || "User";
+      const message = sendRequest(currentUserId, targetId, targetName);
+      renderMatches(persona);
+      renderProfile();
+      setProfileMessage(message);
     });
   });
 
@@ -686,6 +1257,16 @@ function renderMatches(persona) {
       if (card) {
         card.remove();
       }
+    });
+  });
+
+  document.querySelectorAll("button[data-open-profile]").forEach(button => {
+    button.addEventListener("click", () => {
+      const targetId = normalizePersonId(button.dataset.openProfile);
+      if (!targetId) {
+        return;
+      }
+      openPublicProfile(targetId, button.dataset.openProfileName || "User");
     });
   });
 }
@@ -796,6 +1377,332 @@ function renderPrivacyControls() {
   });
 }
 
+function renderProfileEditor() {
+  if (!profileEditorElement) {
+    return;
+  }
+
+  const userId = currentSocialUserId();
+  if (!userId) {
+    profileEditorElement.innerHTML = `<div class="empty-state">Login to manage your profile.</div>`;
+    return;
+  }
+
+  const social = getSocialRecord(userId, state.currentUser?.name || "User");
+  const connectionsCount = social.connections.length;
+  const requestCount = social.incomingRequests.length + social.outgoingRequests.length;
+  const remainingSlots = Math.max(0, MAX_GALLERY_PHOTOS - social.gallery.length);
+  profileEditorElement.innerHTML = `
+    <form class="profile-form" id="profile-form">
+      <div class="profile-top-row">
+        <button class="profile-avatar-button" type="button" data-avatar-upload="true">
+          ${avatarMarkup(userId, "profile-avatar", state.currentUser?.name || "User")}
+          <span>Tap to add or change photo</span>
+        </button>
+        <div class="profile-connection-side">
+          <button class="profile-switch-card ${state.activeProfileView === "connections" ? "active" : ""}" type="button" data-profile-view="connections">
+            <span>Connections</span>
+            <strong>${connectionsCount}</strong>
+          </button>
+          <button class="profile-switch-card ${state.activeProfileView === "requests" ? "active" : ""}" type="button" data-profile-view="requests">
+            <span>Requests</span>
+            <strong>${requestCount}</strong>
+          </button>
+        </div>
+      </div>
+      <div class="profile-avatar-actions">
+        <input type="file" id="profile-avatar-input" accept="image/*">
+        <input type="file" id="profile-gallery-input" accept="image/*" multiple>
+        <button class="ghost-button compact" type="button" data-upload-avatar="true">Upload photo</button>
+        <button class="ghost-button compact" type="button" data-remove-avatar="true" ${social.profile.avatarDataUrl ? "" : "disabled"}>Remove photo</button>
+      </div>
+      <label class="field-label" for="profile-name-input">Profile name</label>
+      <input class="field-input" id="profile-name-input" maxlength="42" value="${escapeHtml(social.profile.displayName)}" required>
+      <label class="field-label" for="profile-bio-input">Bio</label>
+      <textarea class="field-input bio-input" id="profile-bio-input" rows="4" maxlength="220" placeholder="Tell your connections what you enjoy.">${escapeHtml(social.profile.bio)}</textarea>
+      <button class="connect profile-save" type="submit">Save Profile</button>
+      <div class="gallery-editor">
+        <div class="gallery-head">
+          <strong>Photo Gallery</strong>
+          <span>${social.gallery.length}/${MAX_GALLERY_PHOTOS} used</span>
+        </div>
+        <div class="gallery-upload-row">
+          <button class="ghost-button compact" type="button" data-upload-gallery="true" ${remainingSlots ? "" : "disabled"}>${remainingSlots ? "Add Gallery Photos" : "Gallery full"}</button>
+          <span class="gallery-help">Tap a photo to zoom.</span>
+        </div>
+        ${social.gallery.length ? `
+          <div class="gallery-grid editor-grid">
+            ${social.gallery.map((item, index) => `
+              <div class="gallery-editor-tile">
+                <button type="button" class="gallery-tile" data-zoom-src="${escapeHtml(item)}" data-zoom-alt="${escapeHtml(getDisplayName(userId))} gallery photo ${index + 1}">
+                  <img src="${escapeHtml(item)}" alt="${escapeHtml(getDisplayName(userId))} gallery photo ${index + 1}">
+                </button>
+                <button type="button" class="gallery-remove" data-gallery-remove="${index}" aria-label="Remove gallery image ${index + 1}">Remove</button>
+              </div>
+            `).join("")}
+          </div>
+        ` : `<div class="empty-state small-empty">No gallery photos yet. Add up to ${MAX_GALLERY_PHOTOS} photos.</div>`}
+      </div>
+    </form>
+  `;
+
+  const form = document.querySelector("#profile-form");
+  const avatarInput = document.querySelector("#profile-avatar-input");
+  const galleryInput = document.querySelector("#profile-gallery-input");
+  if (!form || !avatarInput || !galleryInput) {
+    return;
+  }
+
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    const nameInput = document.querySelector("#profile-name-input");
+    const bioInput = document.querySelector("#profile-bio-input");
+    const cleanName = String(nameInput?.value || "").trim();
+    const cleanBio = String(bioInput?.value || "").trim();
+
+    if (!cleanName) {
+      setProfileMessage("Profile name cannot be empty.", "error");
+      return;
+    }
+
+    const record = getSocialRecord(userId, state.currentUser?.name || "User");
+    record.profile.displayName = cleanName.slice(0, 42);
+    record.profile.bio = cleanBio.slice(0, 220);
+    record.updatedAt = nowIso();
+    saveSocialState();
+    populateUserSelect();
+    if (state.currentUser) {
+      userSelect.value = state.currentUser.user_id;
+    }
+    renderMatches(currentPersonaUser());
+    renderProfile();
+    setProfileMessage("Profile saved.");
+  });
+
+  profileEditorElement.querySelectorAll("[data-profile-view]").forEach(button => {
+    button.addEventListener("click", () => {
+      setActiveProfileView(button.dataset.profileView, true);
+    });
+  });
+
+  const avatarTapUploadButton = profileEditorElement.querySelector("[data-avatar-upload]");
+  const uploadButton = profileEditorElement.querySelector("[data-upload-avatar]");
+  const removeButton = profileEditorElement.querySelector("[data-remove-avatar]");
+  avatarTapUploadButton?.addEventListener("click", () => avatarInput.click());
+  uploadButton?.addEventListener("click", () => avatarInput.click());
+
+  avatarInput.addEventListener("change", async () => {
+    const file = avatarInput.files && avatarInput.files[0];
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setProfileMessage("Please choose an image file.", "error");
+      avatarInput.value = "";
+      return;
+    }
+    try {
+      const optimized = await readOptimizedImage(file, AVATAR_IMAGE_OPTIONS);
+      if (!optimized) {
+        setProfileMessage("Unable to process selected photo.", "error");
+        return;
+      }
+      const record = getSocialRecord(userId, state.currentUser?.name || "User");
+      record.profile.avatarDataUrl = optimized;
+      record.updatedAt = nowIso();
+      const saved = saveSocialState();
+      renderMatches(currentPersonaUser());
+      renderProfile();
+      if (!saved) {
+        setProfileMessage("Photo added, but not saved. Please remove older photos and try again.", "error");
+        return;
+      }
+      setProfileMessage("Profile photo updated.");
+    } catch {
+      setProfileMessage("Unable to process selected photo.", "error");
+    } finally {
+      avatarInput.value = "";
+    }
+  });
+
+  removeButton?.addEventListener("click", () => {
+    const record = getSocialRecord(userId, state.currentUser?.name || "User");
+    record.profile.avatarDataUrl = "";
+    record.updatedAt = nowIso();
+    const saved = saveSocialState();
+    renderMatches(currentPersonaUser());
+    renderProfile();
+    if (!saved) {
+      setProfileMessage("Photo removed, but save failed on this device.", "error");
+      return;
+    }
+    setProfileMessage("Profile photo removed.");
+  });
+
+  const uploadGalleryButton = profileEditorElement.querySelector("[data-upload-gallery]");
+  uploadGalleryButton?.addEventListener("click", () => galleryInput.click());
+
+  galleryInput.addEventListener("change", async () => {
+    const files = Array.from(galleryInput.files || []).filter(file => file.type.startsWith("image/"));
+    if (!files.length) {
+      return;
+    }
+    const record = getSocialRecord(userId, state.currentUser?.name || "User");
+    const remaining = Math.max(0, MAX_GALLERY_PHOTOS - record.gallery.length);
+    if (!remaining) {
+      setProfileMessage(`Gallery is already full (${MAX_GALLERY_PHOTOS} photos).`, "error");
+      galleryInput.value = "";
+      return;
+    }
+
+    const acceptedFiles = files.slice(0, remaining);
+    const dataUrls = [];
+    for (const file of acceptedFiles) {
+      try {
+        const dataUrl = await readOptimizedImage(file, GALLERY_IMAGE_OPTIONS);
+        if (dataUrl) {
+          dataUrls.push(dataUrl);
+        }
+      } catch {
+        // Ignore failed reads and continue.
+      }
+    }
+
+    if (!dataUrls.length) {
+      setProfileMessage("Unable to add selected photos.", "error");
+      galleryInput.value = "";
+      return;
+    }
+
+    record.gallery = record.gallery.concat(dataUrls).slice(0, MAX_GALLERY_PHOTOS);
+    record.updatedAt = nowIso();
+    const saved = saveSocialState();
+    renderProfile();
+    if (!saved) {
+      setProfileMessage("Photos added, but not saved. Remove older photos and retry.", "error");
+      galleryInput.value = "";
+      return;
+    }
+    setProfileMessage(`${dataUrls.length} photo${dataUrls.length > 1 ? "s" : ""} added.`);
+    galleryInput.value = "";
+  });
+
+  profileEditorElement.querySelectorAll("[data-gallery-remove]").forEach(button => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.galleryRemove);
+      if (!Number.isInteger(index)) {
+        return;
+      }
+      const record = getSocialRecord(userId, state.currentUser?.name || "User");
+      record.gallery = record.gallery.filter((_, itemIndex) => itemIndex !== index);
+      record.updatedAt = nowIso();
+      const saved = saveSocialState();
+      renderProfile();
+      if (!saved) {
+        setProfileMessage("Photo removed, but save failed on this device.", "error");
+        return;
+      }
+      setProfileMessage("Photo removed from gallery.");
+    });
+  });
+
+  profileEditorElement.querySelectorAll("[data-zoom-src]").forEach(button => {
+    button.addEventListener("click", () => {
+      const src = button.dataset.zoomSrc;
+      if (!src) {
+        return;
+      }
+      openImageZoom(src, button.dataset.zoomAlt || "Gallery image");
+    });
+  });
+}
+
+function renderConnections() {
+  if (!connectionsList) {
+    return;
+  }
+  const userId = currentSocialUserId();
+  if (!userId) {
+    connectionsList.innerHTML = `<div class="empty-state">Login to see your connections.</div>`;
+    return;
+  }
+  const connections = getSocialRecord(userId).connections;
+  if (!connections.length) {
+    connectionsList.innerHTML = `<div class="empty-state">No connections yet. Send safe intros from your matches.</div>`;
+    return;
+  }
+  connectionsList.innerHTML = connections.map(otherId => `
+    <article class="connection-item">
+      <button class="connection-info open-profile" type="button" data-open-profile="${escapeHtml(otherId)}">
+        ${avatarMarkup(otherId, "mini-avatar")}
+        <div>
+          <strong>${escapeHtml(getDisplayName(otherId))}</strong>
+          <span>Tap to view profile gallery</span>
+        </div>
+      </button>
+      <button type="button" class="ghost-button compact danger-subtle" data-remove-connection="${escapeHtml(otherId)}">Remove</button>
+    </article>
+  `).join("");
+}
+
+function renderRequests() {
+  if (!incomingRequestsList || !outgoingRequestsList) {
+    return;
+  }
+  const userId = currentSocialUserId();
+  if (!userId) {
+    incomingRequestsList.innerHTML = `<div class="empty-state">Login to see requests.</div>`;
+    outgoingRequestsList.innerHTML = `<div class="empty-state">Login to see requests.</div>`;
+    return;
+  }
+
+  const social = getSocialRecord(userId);
+  if (!social.incomingRequests.length) {
+    incomingRequestsList.innerHTML = `<div class="empty-state">No incoming requests right now.</div>`;
+  } else {
+    incomingRequestsList.innerHTML = social.incomingRequests.map(otherId => `
+      <article class="request-item">
+        <button class="connection-info open-profile" type="button" data-open-profile="${escapeHtml(otherId)}">
+          ${avatarMarkup(otherId, "mini-avatar")}
+          <div>
+            <strong>${escapeHtml(getDisplayName(otherId))}</strong>
+            <span>Wants to connect with you</span>
+          </div>
+        </button>
+        <div class="request-actions">
+          <button type="button" class="ghost-button compact" data-accept-request="${escapeHtml(otherId)}">Accept</button>
+          <button type="button" class="ghost-button compact danger-subtle" data-decline-request="${escapeHtml(otherId)}">Decline</button>
+        </div>
+      </article>
+    `).join("");
+  }
+
+  if (!social.outgoingRequests.length) {
+    outgoingRequestsList.innerHTML = `<div class="empty-state">No pending sent requests.</div>`;
+  } else {
+    outgoingRequestsList.innerHTML = social.outgoingRequests.map(otherId => `
+      <article class="request-item">
+        <button class="connection-info open-profile" type="button" data-open-profile="${escapeHtml(otherId)}">
+          ${avatarMarkup(otherId, "mini-avatar")}
+          <div>
+            <strong>${escapeHtml(getDisplayName(otherId))}</strong>
+            <span>Waiting for response</span>
+          </div>
+        </button>
+        <button type="button" class="ghost-button compact danger-subtle" data-cancel-request="${escapeHtml(otherId)}">Cancel</button>
+      </article>
+    `).join("");
+  }
+}
+
+function renderProfile() {
+  renderProfileEditor();
+  renderConnections();
+  renderRequests();
+  document.querySelector("#profile-connections-pane")?.classList.toggle("active", state.activeProfileView === "connections");
+  document.querySelector("#profile-requests-pane")?.classList.toggle("active", state.activeProfileView === "requests");
+}
+
 function updatePageHeader(sectionId) {
   const copy = STATIC_DATA.pageCopy[sectionId] || STATIC_DATA.pageCopy.routine;
   document.querySelector("#page-title").textContent = copy[0];
@@ -811,6 +1718,7 @@ function renderAll() {
   renderRecommendations(persona);
   renderPrivacyRules();
   renderPrivacyControls();
+  renderProfile();
 }
 
 async function handleUserSwitch(userId) {
@@ -820,6 +1728,7 @@ async function handleUserSwitch(userId) {
   }
 
   state.currentUser = selected;
+  ensureSocialCounterparty(normalizePersonId(selected.user_id), selected.name || "User");
   userSelect.value = selected.user_id;
   privacyMessage.textContent = "";
 
@@ -936,10 +1845,125 @@ function setupActions() {
     matchModal.classList.remove("visible");
   });
 
+  connectionsList?.addEventListener("click", event => {
+    const openProfileButton = event.target.closest("button[data-open-profile]");
+    if (openProfileButton) {
+      const profileId = normalizePersonId(openProfileButton.dataset.openProfile);
+      if (profileId) {
+        openPublicProfile(profileId, getDisplayName(profileId));
+      }
+      return;
+    }
+
+    const removeButton = event.target.closest("button[data-remove-connection]");
+    if (!removeButton) {
+      return;
+    }
+    const userId = currentSocialUserId();
+    const otherId = normalizePersonId(removeButton.dataset.removeConnection);
+    if (!userId || !otherId) {
+      return;
+    }
+    const message = removeConnection(userId, otherId);
+    renderMatches(currentPersonaUser());
+    renderProfile();
+    setProfileMessage(message);
+  });
+
+  incomingRequestsList?.addEventListener("click", event => {
+    const openProfileButton = event.target.closest("button[data-open-profile]");
+    if (openProfileButton) {
+      const profileId = normalizePersonId(openProfileButton.dataset.openProfile);
+      if (profileId) {
+        openPublicProfile(profileId, getDisplayName(profileId));
+      }
+      return;
+    }
+
+    const acceptButton = event.target.closest("button[data-accept-request]");
+    const declineButton = event.target.closest("button[data-decline-request]");
+    if (!acceptButton && !declineButton) {
+      return;
+    }
+    const userId = currentSocialUserId();
+    const requesterId = normalizePersonId(acceptButton ? acceptButton.dataset.acceptRequest : declineButton.dataset.declineRequest);
+    if (!userId || !requesterId) {
+      return;
+    }
+    const message = acceptButton ? acceptRequest(userId, requesterId) : declineRequest(userId, requesterId);
+    renderMatches(currentPersonaUser());
+    renderProfile();
+    setProfileMessage(message);
+  });
+
+  outgoingRequestsList?.addEventListener("click", event => {
+    const openProfileButton = event.target.closest("button[data-open-profile]");
+    if (openProfileButton) {
+      const profileId = normalizePersonId(openProfileButton.dataset.openProfile);
+      if (profileId) {
+        openPublicProfile(profileId, getDisplayName(profileId));
+      }
+      return;
+    }
+
+    const cancelButton = event.target.closest("button[data-cancel-request]");
+    if (!cancelButton) {
+      return;
+    }
+    const userId = currentSocialUserId();
+    const targetId = normalizePersonId(cancelButton.dataset.cancelRequest);
+    if (!userId || !targetId) {
+      return;
+    }
+    const message = cancelRequest(userId, targetId);
+    renderMatches(currentPersonaUser());
+    renderProfile();
+    setProfileMessage(message);
+  });
+
+  zoomClose?.addEventListener("click", closeProfileZoom);
+  zoomModal?.addEventListener("click", event => {
+    const closeTarget = event.target.closest("[data-zoom-close]");
+    if (closeTarget) {
+      closeProfileZoom();
+    }
+  });
+
+  publicProfileClose?.addEventListener("click", closePublicProfile);
+  publicProfileModal?.addEventListener("click", event => {
+    const closeTarget = event.target.closest("[data-public-close]");
+    if (closeTarget) {
+      closePublicProfile();
+      return;
+    }
+    const zoomTile = event.target.closest("[data-zoom-src]");
+    if (zoomTile) {
+      const src = zoomTile.dataset.zoomSrc;
+      if (src) {
+        openImageZoom(src, zoomTile.dataset.zoomAlt || "Gallery image");
+      }
+    }
+  });
+
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && zoomModal?.classList.contains("visible")) {
+      closeProfileZoom();
+      return;
+    }
+    if (event.key === "Escape" && publicProfileModal?.classList.contains("visible")) {
+      closePublicProfile();
+      return;
+    }
+    if (event.key === "Escape" && matchModal.classList.contains("visible")) {
+      matchModal.classList.remove("visible");
+    }
+  });
+
   loginContinue.addEventListener("click", handleLogin);
 }
 
 async function init() {
+  state.social = loadSocialState();
   setupNavigation();
   setupActions();
   renderPrivacyRules();

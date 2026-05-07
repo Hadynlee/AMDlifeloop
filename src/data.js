@@ -103,6 +103,7 @@ window.LIFELOOP_DATA = {
     summary: ["Home Dashboard", "Track routine coverage, top categories, and privacy-safe matching progress over the latest 30 days."],
     matches: ["Privacy-Safe Matches", "Match scores are computed from approximate cells, route patterns, and broad activity windows only."],
     missions: ["Recommended Places", "Nearby places are suggested from routine cells and category fit, not exact path disclosure."],
-    privacy: ["Privacy Controls", "Pause tracking or matching anytime, and permanently delete stored location history on demand."]
+    privacy: ["Privacy Controls", "Pause tracking or matching anytime, and permanently delete stored location history on demand."],
+    profile: ["Profile", "Manage your profile, gallery, and privacy-safe connections without exposing live location."]
   }
 };
