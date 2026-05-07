@@ -43,6 +43,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.68 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1v7z"/><path d="M9 12l2 2 4-4"/></svg>
           <span>Privacy</span>
         </button>
+        <button class="nav-button" data-section="profile" title="Profile">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Profile</span>
+        </button>
       </nav>
 
       <div class="privacy-note">
@@ -142,6 +146,42 @@
           <h3>Privacy & Safety Filter</h3>
           <p class="explain">The app converts raw movement data into safer lifestyle signals before anything becomes social.</p>
           <div class="privacy-grid inset-top" id="privacy-grid"></div>
+        </div>
+      </section>
+
+      <section id="profile" class="section">
+        <div class="grid two profile-grid">
+          <div class="panel pad">
+            <div class="panel-title-row">
+              <h3>My Profile</h3>
+              <span class="profile-message" id="profile-message"></span>
+            </div>
+            <div id="profile-editor"></div>
+          </div>
+          <div class="panel pad">
+            <div class="profile-tabbar" id="profile-tabbar">
+              <button class="profile-tab active" data-profile-view="feed" type="button">Feed</button>
+              <button class="profile-tab" data-profile-view="connections" type="button">Connections</button>
+              <button class="profile-tab" data-profile-view="requests" type="button">Requests</button>
+            </div>
+            <div class="profile-pane active" id="profile-feed-pane">
+              <form class="feed-form" id="feed-form">
+                <label class="field-label" for="feed-input">Share an update</label>
+                <textarea id="feed-input" class="field-input feed-input" rows="3" maxlength="220" placeholder="Post a routine update for your private feed..."></textarea>
+                <button class="connect feed-submit" type="submit">Post</button>
+              </form>
+              <div class="feed-list" id="feed-list"></div>
+            </div>
+            <div class="profile-pane" id="profile-connections-pane">
+              <div class="connections-list" id="connections-list"></div>
+            </div>
+            <div class="profile-pane" id="profile-requests-pane">
+              <h3 class="profile-subhead">Incoming Requests</h3>
+              <div class="request-list" id="incoming-requests-list"></div>
+              <h3 class="profile-subhead">Pending Sent Requests</h3>
+              <div class="request-list" id="outgoing-requests-list"></div>
+            </div>
+          </div>
         </div>
       </section>
     </main>

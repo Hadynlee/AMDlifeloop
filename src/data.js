@@ -102,6 +102,7 @@ window.LIFELOOP_DATA = {
     summary: ["AI Lifestyle Summary", "Agent outputs transform location logs into explainable tags, summaries, and privacy-safe insights."],
     matches: ["Recommended Connections", "Users are matched by lifestyle similarity, not live proximity."],
     missions: ["Missions & Rewards", "AI-generated missions turn everyday routes into local discovery and merchant value."],
-    privacy: ["Privacy Guardrails", "The safety layer redacts sensitive details before any social recommendation is shown."]
+    privacy: ["Privacy Guardrails", "The safety layer redacts sensitive details before any social recommendation is shown."],
+    profile: ["My Profile", "Update your profile, manage private connections, and accept requests in one place."]
   }
 };
