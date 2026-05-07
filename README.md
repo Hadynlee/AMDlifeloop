@@ -42,9 +42,31 @@ The core promise:
 
 ## How To Run
 
+Option 1 (quick local):
+
 Open `index.html` directly in a browser.
 
-No install step is required. The app is written with plain HTML, CSS, and JavaScript so it is easy to demo and easy to push to GitHub Pages.
+Option 2 (Docker, mobile preview by default):
+
+```bash
+docker build -t lifeloop-ai .
+docker run --rm -p 8080:8080 lifeloop-ai
+```
+
+Then open:
+
+```text
+http://localhost:8080/
+```
+
+The root URL serves `mobile-preview.html`, which renders the app inside a phone-sized frame so mobile layout is visible on a laptop.
+
+Useful URLs:
+
+- `http://localhost:8080/` → phone preview shell
+- `http://localhost:8080/index.html` → full-width app view
+
+No install step is required for the non-Docker path. The app is plain HTML, CSS, and JavaScript so it is easy to demo and easy to push to GitHub Pages.
 
 ## Mobile Branch
 
