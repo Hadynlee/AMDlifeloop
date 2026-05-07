@@ -73,6 +73,78 @@ window.LIFELOOP_DATA = {
       tags: ["Nature", "Cafes", "Brunch", "Walking", "Weekend Exploration"],
       vector: { campus: 0.12, sports: 0.32, cafe: 0.74, nightlife: 0.18, nature: 0.95, shopping: 0.26, food: 0.78, fitness: 0.46 },
       logs: 27
+    },
+    {
+      id: "noah",
+      name: "Noah Tan",
+      persona: "office routine by day, social food explorer by night",
+      zones: [
+        { label: "CBD office", detail: "Weekdays", x: 72, y: 30, type: "big" },
+        { label: "Boardgame loft", detail: "Weekend afternoons", x: 58, y: 63, type: "mid" },
+        { label: "Late food stretch", detail: "Evenings", x: 51, y: 72, type: "mid" }
+      ],
+      routines: [
+        ["CBD loop", "Predictable office corridor movement.", "route"],
+        ["Evening social food", "Explores dinner places after work.", "coffee"],
+        ["Weekend hobby hangout", "Regular boardgame and social sessions.", "star"]
+      ],
+      tags: ["Food", "Games", "Evening Activities", "Commute"],
+      vector: { campus: 0.36, sports: 0.41, cafe: 0.69, nightlife: 0.56, nature: 0.2, shopping: 0.33, food: 0.9, fitness: 0.34 },
+      logs: 30
+    },
+    {
+      id: "priya",
+      name: "Priya Das",
+      persona: "morning routine anchor, weekend brunch planner, and calm reader",
+      zones: [
+        { label: "Neighborhood park", detail: "Morning movement", x: 56, y: 39, type: "mid" },
+        { label: "Downtown office", detail: "Weekday midday", x: 70, y: 33, type: "big" },
+        { label: "Brunch lane", detail: "Weekend noon", x: 45, y: 71, type: "mid" }
+      ],
+      routines: [
+        ["Morning movement", "Consistent weekday and weekend morning active period.", "activity"],
+        ["Downtown cadence", "Stable weekday work loop.", "route"],
+        ["Weekend brunch + reading", "Slow-paced social weekend rhythm.", "book"]
+      ],
+      tags: ["Nature", "Brunch", "Reading", "Calm Vibes"],
+      vector: { campus: 0.41, sports: 0.52, cafe: 0.7, nightlife: 0.16, nature: 0.78, shopping: 0.22, food: 0.73, fitness: 0.58 },
+      logs: 32
+    },
+    {
+      id: "ethan",
+      name: "Ethan Lim",
+      persona: "cycling commuter and weekend photography cafe drifter",
+      zones: [
+        { label: "City work zone", detail: "Weekday daytime", x: 73, y: 31, type: "big" },
+        { label: "Cycle corridor", detail: "Evenings", x: 57, y: 51, type: "mid" },
+        { label: "Photo cafe strip", detail: "Weekend afternoons", x: 44, y: 67, type: "mid" }
+      ],
+      routines: [
+        ["Cycle cooldown", "Structured exercise rhythm after work.", "activity"],
+        ["Photo walk", "Creative weekend movement loop.", "star"],
+        ["Hawker stop", "Quick evening meal routine.", "coffee"]
+      ],
+      tags: ["Cycling", "Photography", "Food", "Fitness"],
+      vector: { campus: 0.22, sports: 0.83, cafe: 0.61, nightlife: 0.31, nature: 0.52, shopping: 0.24, food: 0.79, fitness: 0.88 },
+      logs: 30
+    },
+    {
+      id: "hana",
+      name: "Hana Lee",
+      persona: "campus learner with dance evenings and dessert-centered social outings",
+      zones: [
+        { label: "Campus", detail: "Weekday afternoons", x: 29, y: 36, type: "big" },
+        { label: "Dance studio", detail: "Evenings", x: 52, y: 58, type: "mid" },
+        { label: "Dessert street", detail: "Weekend evenings", x: 46, y: 74, type: "mid" }
+      ],
+      routines: [
+        ["Campus-to-studio route", "Repeated weekday pattern from classes to dance.", "route"],
+        ["Evening dance rhythm", "High energy post-study routine.", "activity"],
+        ["Weekend desserts", "Social cafe and dessert visits.", "coffee"]
+      ],
+      tags: ["Dance", "Cafes", "Desserts", "Campus"],
+      vector: { campus: 0.84, sports: 0.66, cafe: 0.83, nightlife: 0.35, nature: 0.26, shopping: 0.4, food: 0.8, fitness: 0.61 },
+      logs: 28
     }
   ],
   missionTemplates: [
@@ -99,10 +171,11 @@ window.LIFELOOP_DATA = {
   ],
   apiBase: `${window.location.protocol}//${window.location.hostname}:8000`,
   pageCopy: {
-    routine: ["My Routine", "Generalized zones summarize repeated movement patterns while hiding exact GPS and real-time location."],
-    summary: ["Home Dashboard", "Track routine coverage, top categories, and privacy-safe matching progress over the latest 30 days."],
-    matches: ["Privacy-Safe Matches", "Match scores are computed from approximate cells, route patterns, and broad activity windows only."],
-    missions: ["Recommended Places", "Nearby places are suggested from routine cells and category fit, not exact path disclosure."],
-    privacy: ["Privacy Controls", "Pause tracking or matching anytime, and permanently delete stored location history on demand."]
+    routine: ["Routine", "Generalized zones summarize repeated movement patterns while hiding exact GPS and real-time location."],
+    summary: ["Home", "Track routine coverage, top categories, and privacy-safe matching progress over the latest 30 days."],
+    matches: ["Matches", "Match Coach explains fit, provides safe icebreakers, and suggests first-meet formats."],
+    friends: ["Friends", "Mutual likes unlock chat, weekly social windows, and place suggestions for safer meetups."],
+    missions: ["Places", "Nearby places are suggested from routine cells and category fit, not exact path disclosure."],
+    privacy: ["Privacy", "Pause tracking or matching anytime, and permanently delete stored location history on demand."]
   }
 };

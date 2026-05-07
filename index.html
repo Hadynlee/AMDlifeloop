@@ -35,6 +35,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           <span>Matches</span>
         </button>
+        <button class="nav-button" data-section="friends" title="Friends">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 11v6"/><path d="M20 14h6"/></svg>
+          <span>Friends</span>
+        </button>
         <button class="nav-button" data-section="missions" title="Places">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>
           <span>Places</span>
@@ -87,6 +91,19 @@
             <div class="routine-list" id="routine-list"></div>
           </div>
         </div>
+        <div class="panel pad inset-top">
+          <h3>Routine Mirror</h3>
+          <p class="explain" id="routine-mirror-summary">Weekly routine summary is loading.</p>
+          <div class="tag-row" id="routine-mirror-highlights"></div>
+          <div class="inline-note inset-top" id="routine-mirror-alerts"></div>
+          <div class="chat-shell inset-top">
+            <div class="chat-messages" id="routine-chat-log"></div>
+            <div class="chat-input-row">
+              <input class="field-input" id="routine-chat-input" placeholder="Ask Routine Mirror a follow-up question">
+              <button class="connect" id="routine-chat-send">Ask</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section id="summary" class="section">
@@ -119,6 +136,33 @@
 
       <section id="matches" class="section">
         <div class="card-grid" id="match-list"></div>
+      </section>
+
+      <section id="friends" class="section">
+        <div class="grid two">
+          <div class="panel pad">
+            <h3>Liked People · Weekly Social Planner</h3>
+            <p class="explain">Every liked profile gets 2-3 broad windows based on routine overlap.</p>
+            <div class="friend-mini-list inset-top" id="liked-list"></div>
+            <h3 class="inset-top">Mutual Friends</h3>
+            <p class="explain">Only people with mutual likes can chat here.</p>
+            <div class="friend-list inset-top" id="friend-list"></div>
+          </div>
+          <div class="panel pad">
+            <h3 id="friend-chat-title">Friend Chat</h3>
+            <p class="explain" id="friend-chat-subtitle">Select a mutual friend to start chatting.</p>
+            <div class="tag-row" id="friend-windows"></div>
+            <div class="place-scout-list inset-top" id="friend-place-scout"></div>
+            <div class="chat-shell inset-top">
+              <div class="chat-messages" id="friend-chat-messages"></div>
+              <div class="chat-input-row">
+                <input class="field-input" id="friend-chat-input" placeholder="Send a message">
+                <button class="connect" id="friend-chat-send">Send</button>
+              </div>
+            </div>
+            <div class="inline-note inset-top" id="safety-alert" hidden></div>
+          </div>
+        </div>
       </section>
 
       <section id="missions" class="section">

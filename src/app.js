@@ -24,6 +24,24 @@ const privacyForm = document.querySelector("#privacy-settings-form");
 const privacyMessage = document.querySelector("#privacy-message");
 const deleteHistoryButton = document.querySelector("#delete-history");
 
+const routineMirrorSummary = document.querySelector("#routine-mirror-summary");
+const routineMirrorHighlights = document.querySelector("#routine-mirror-highlights");
+const routineMirrorAlerts = document.querySelector("#routine-mirror-alerts");
+const routineChatLog = document.querySelector("#routine-chat-log");
+const routineChatInput = document.querySelector("#routine-chat-input");
+const routineChatSend = document.querySelector("#routine-chat-send");
+
+const likedList = document.querySelector("#liked-list");
+const friendList = document.querySelector("#friend-list");
+const friendChatTitle = document.querySelector("#friend-chat-title");
+const friendChatSubtitle = document.querySelector("#friend-chat-subtitle");
+const friendWindows = document.querySelector("#friend-windows");
+const friendPlaceScout = document.querySelector("#friend-place-scout");
+const friendChatMessages = document.querySelector("#friend-chat-messages");
+const friendChatInput = document.querySelector("#friend-chat-input");
+const friendChatSend = document.querySelector("#friend-chat-send");
+const safetyAlert = document.querySelector("#safety-alert");
+
 const state = {
   apiReady: false,
   usingFallback: false,
@@ -40,7 +58,16 @@ const state = {
   profile: null,
   locationLogs: [],
   matches: [],
+  socialMatches: [],
   recommendations: [],
+  likedPeople: [],
+  friends: [],
+  activeFriendId: null,
+  activeThread: null,
+  routineMirror: null,
+  routineChatMessages: [],
+  localLikes: {},
+  localChats: {},
 };
 
 let googleMapsLoadPromise = null;
@@ -129,6 +156,16 @@ function currentPersonaUser() {
   return persona || STATIC_DATA.users[0];
 }
 
+function personaByUserId(userId) {
+  const userRecord = state.users.find(item => String(item.user_id) === String(userId));
+  if (!userRecord) {
+    return STATIC_DATA.users[0];
+  }
+
+  const short = String(userRecord.email || "").split("@")[0] || String(userRecord.user_id).slice(0, 6);
+  return STATIC_DATA.users.find(item => item.id === short || item.name === userRecord.name) || STATIC_DATA.users[0];
+}
+
 function cosine(a, b) {
   const keys = Object.keys(a);
   const dot = keys.reduce((sum, key) => sum + a[key] * (b[key] || 0), 0);
@@ -138,6 +175,16 @@ function cosine(a, b) {
     return 0;
   }
   return dot / (magA * magB);
+}
+
+function hashFraction(value) {
+  const text = String(value);
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) - hash) + text.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash % 1000) / 1000;
 }
 
 function fallbackMatchesForPersona(persona) {
@@ -163,6 +210,152 @@ function fallbackMatchesForPersona(persona) {
     .sort((a, b) => b.final_score - a.final_score);
 }
 
+function sharedTags(userA, userB) {
+  return userA.tags.filter(tag => userB.tags.includes(tag)).slice(0, 3);
+}
+
+function fallbackSocialMatches(persona) {
+  const likesForCurrent = state.localLikes[persona.id] || {};
+  return fallbackMatchesForPersona(persona).map(match => {
+    const otherPersona = STATIC_DATA.users.find(user => user.id === String(match.user_id_2)) || STATIC_DATA.users[0];
+    const tagList = sharedTags(persona, otherPersona);
+    const likeState = likesForCurrent[otherPersona.id] || "none";
+    const reciprocal = (state.localLikes[otherPersona.id] || {})[persona.id] === "liked";
+
+    return {
+      ...match,
+      fit_explanation: `You align on ${tagList[0] || "weekly rhythm"} and have compatible routine timing for low-friction planning.`,
+      discovery_note: `Complementary pick: ${otherPersona.name} brings variety through ${otherPersona.tags.slice(0, 2).join(" + ").toLowerCase()}.`,
+      like_state: likeState,
+      is_mutual: likeState === "liked" && reciprocal,
+      safe_icebreakers: [
+        "What is one small win from your week?",
+        "Would you prefer a short daytime meetup or an early-evening one?",
+        "What kind of public place feels easiest for first meetings?",
+      ],
+      first_meet_activities: [
+        "Cafe check-in near transit",
+        "Park walk in daylight",
+        "Casual food court meetup",
+      ],
+    };
+  });
+}
+
+function fallbackPlannerWindows(persona, otherPersona) {
+  const options = [
+    "Weekday · Early Evening (6pm-9pm)",
+    "Weekend · Morning (8am-11am)",
+    "Weekend · Afternoon (1pm-4pm)",
+  ];
+  const score = cosine(persona.vector, otherPersona.vector);
+  if (score > 0.7) {
+    return [
+      { label: options[0], bucket: "weekday", daypart: "evening", confidence: "high" },
+      { label: options[1], bucket: "weekend", daypart: "morning", confidence: "medium" },
+      { label: options[2], bucket: "weekend", daypart: "afternoon", confidence: "medium" },
+    ];
+  }
+  return [
+    { label: options[1], bucket: "weekend", daypart: "morning", confidence: "medium" },
+    { label: options[2], bucket: "weekend", daypart: "afternoon", confidence: "medium" },
+  ];
+}
+
+function fallbackPlaceScout(persona, otherPersona) {
+  const shared = sharedTags(persona, otherPersona);
+  return [
+    {
+      name: "Transit Commons Cafe",
+      category: "cafe",
+      rating: 4.4,
+      price_level: 2,
+      reason: `Matches both routines around ${shared[0] || "casual social"} vibes with easy transit exits.`,
+      score: 0.88,
+    },
+    {
+      name: "Open Park Hub",
+      category: "nature",
+      rating: 4.3,
+      price_level: 0,
+      reason: "Public daytime setting with low pressure and clear visibility.",
+      score: 0.82,
+    },
+  ];
+}
+
+function chatKey(leftId, rightId) {
+  return [String(leftId), String(rightId)].sort().join("::");
+}
+
+function ensureFallbackChat(leftId, rightId) {
+  const key = chatKey(leftId, rightId);
+  if (!state.localChats[key]) {
+    state.localChats[key] = [
+      {
+        message_id: `${key}-1`,
+        sender_user_id: rightId,
+        body: "Hey, daytime meetups near transit work best for me.",
+        safety_flagged: false,
+        safety_reason: null,
+        safety_alternatives: [],
+        created_at: new Date().toISOString(),
+      },
+    ];
+  }
+  return state.localChats[key];
+}
+
+function fallbackLikedAndFriends(persona) {
+  const likesForCurrent = state.localLikes[persona.id] || {};
+  const likedPeople = Object.entries(likesForCurrent)
+    .filter(([, stateValue]) => stateValue === "liked")
+    .map(([otherId]) => {
+      const otherPersona = STATIC_DATA.users.find(user => user.id === otherId);
+      const reciprocal = (state.localLikes[otherId] || {})[persona.id] === "liked";
+      return {
+        other_user_id: otherId,
+        other_user_name: otherPersona?.name || otherId,
+        like_state: "liked",
+        is_mutual: reciprocal,
+        weekly_windows: fallbackPlannerWindows(persona, otherPersona || STATIC_DATA.users[0]),
+      };
+    });
+
+  const friends = likedPeople
+    .filter(person => person.is_mutual)
+    .map(person => {
+      const otherPersona = STATIC_DATA.users.find(user => user.id === person.other_user_id) || STATIC_DATA.users[0];
+      ensureFallbackChat(persona.id, otherPersona.id);
+      return {
+        connection_id: chatKey(persona.id, otherPersona.id),
+        friend_user_id: otherPersona.id,
+        friend_name: otherPersona.name,
+        connected_at: new Date().toISOString(),
+        weekly_windows: person.weekly_windows,
+        place_scout: fallbackPlaceScout(persona, otherPersona),
+      };
+    });
+
+  return { likedPeople, friends };
+}
+
+function fallbackRoutineMirror(persona) {
+  return {
+    weekly_summary: `Routine Mirror sees stable ${persona.tags.slice(0, 2).join(" + ")} patterns this week.`,
+    habit_highlights: [
+      `Consistent ${persona.tags[0]} rhythm across weekdays.`,
+      `Healthy weekend energy around ${persona.tags[1] || "social"} activities.`,
+      "No severe routine drift detected.",
+    ],
+    energy_pattern: [
+      "High movement tendency in evening windows.",
+      "Weekend midday has strongest social compatibility.",
+    ],
+    routine_drift_alerts: [],
+  };
+}
+
 async function apiRequest(path, options = {}) {
   const requestOptions = {
     method: options.method || "GET",
@@ -185,7 +378,7 @@ async function apiRequest(path, options = {}) {
         message = errorPayload.detail;
       }
     } catch {
-      // Ignore parse failure and use default message.
+      // ignore parse error
     }
     throw new Error(message);
   }
@@ -325,6 +518,31 @@ async function loadPrivacySettings(userId) {
   });
 }
 
+async function loadSocialData(userId) {
+  const persona = currentPersonaUser();
+
+  if (!state.apiReady) {
+    state.socialMatches = fallbackSocialMatches(persona);
+    const fallback = fallbackLikedAndFriends(persona);
+    state.likedPeople = fallback.likedPeople;
+    state.friends = fallback.friends;
+    state.routineMirror = fallbackRoutineMirror(persona);
+    return;
+  }
+
+  const [coach, liked, friends, mirror] = await Promise.all([
+    apiRequest(`/social/match-coach/${userId}`).catch(() => []),
+    apiRequest(`/social/liked/${userId}`).catch(() => []),
+    apiRequest(`/social/friends/${userId}`).catch(() => []),
+    apiRequest(`/social/routine-mirror/${userId}`).catch(() => null),
+  ]);
+
+  state.socialMatches = coach;
+  state.likedPeople = liked;
+  state.friends = friends;
+  state.routineMirror = mirror || fallbackRoutineMirror(persona);
+}
+
 async function recomputePipeline(userId, forceSynthetic = false) {
   if (!state.apiReady) {
     return;
@@ -365,6 +583,7 @@ async function recomputePipeline(userId, forceSynthetic = false) {
   }
 
   state.locationLogs = await apiRequest(`/location/history/${userId}?limit=500`);
+  await loadSocialData(userId);
 }
 
 async function loadUserData(userId) {
@@ -386,6 +605,7 @@ async function loadUserData(userId) {
     state.profile = null;
     state.matches = fallbackMatchesForPersona(persona);
     state.recommendations = [];
+    await loadSocialData(userId);
     return;
   }
 
@@ -412,6 +632,7 @@ async function loadUserData(userId) {
     } catch {
       state.profile = null;
     }
+    await loadSocialData(userId);
   }
 }
 
@@ -589,7 +810,7 @@ function topCategoriesFromProfile() {
 
 function renderSummary(persona) {
   const tags = topCategoriesFromProfile();
-  const topMatch = state.matches[0];
+  const topMatch = state.socialMatches[0] || state.matches[0];
   const trackingOn = state.privacy?.tracking_enabled !== false;
 
   const summaryLine = state.profile
@@ -623,9 +844,10 @@ function renderMatchCard(match) {
     `${formatScore(match.place_similarity)} place`,
   ];
   const name = match.other_user_name || `User ${String(match.user_id_2).slice(0, 6)}`;
+  const isLiked = match.like_state === "liked";
 
   return `
-    <article class="card" data-match-id="${match.match_id}">
+    <article class="card" data-match-id="${match.match_id}" data-other-user-id="${match.user_id_2}">
       <div class="avatar-row">
         <div class="avatar-name">
           <div class="avatar">${name.slice(0, 1)}</div>
@@ -637,19 +859,100 @@ function renderMatchCard(match) {
         <div class="score">${formatScore(match.final_score)}</div>
       </div>
       <div class="tag-row">${tags.map(tag => `<span class="tag blue">${tag}</span>`).join("")}</div>
-      <p class="explain">${match.explanation}</p>
+      <p class="explain">${match.fit_explanation || match.explanation}</p>
+      <p class="explain"><strong>Discovery:</strong> ${match.discovery_note || "Complementary lifestyle signal available."}</p>
       <div class="card-actions">
-        <button class="connect" data-action="like" data-match-id="${match.match_id}">${icons.send} Like</button>
+        <button class="connect" data-action="like" data-match-id="${match.match_id}" data-other-user-id="${match.user_id_2}" ${isLiked ? "disabled" : ""}>${icons.send} ${isLiked ? "Liked" : "Like"}</button>
         <button class="connect secondary" data-action="detail" data-match-id="${match.match_id}">View detail</button>
         <button class="connect secondary" data-action="skip" data-match-id="${match.match_id}">Skip</button>
       </div>
+      <div class="inset-top" ${isLiked ? "" : "hidden"} data-coach-panel>
+        <p class="explain"><strong>Safe icebreakers</strong></p>
+        <div class="tag-row">${(match.safe_icebreakers || []).map(item => `<span class="tag">${item}</span>`).join("")}</div>
+        <p class="explain inset-top"><strong>First-meet activity types</strong></p>
+        <div class="tag-row">${(match.first_meet_activities || []).map(item => `<span class="tag gold">${item}</span>`).join("")}</div>
+      </div>
+      <div class="chat-input-row inset-top">
+        <input class="field-input" data-match-question placeholder="Ask Match Coach follow-up">
+        <button class="connect secondary" data-action="ask-match" data-other-user-id="${match.user_id_2}">Ask</button>
+      </div>
+      <p class="explain" data-match-answer></p>
     </article>
   `;
 }
 
+async function handleLike(match) {
+  if (!state.currentUser) {
+    return;
+  }
+
+  if (state.apiReady) {
+    await apiRequest("/social/likes", {
+      method: "POST",
+      body: {
+        from_user_id: state.currentUser.user_id,
+        to_user_id: match.user_id_2,
+        action: "like",
+      },
+    });
+    await loadSocialData(state.currentUser.user_id);
+    renderMatches(currentPersonaUser());
+    renderFriends();
+    return;
+  }
+
+  const me = currentPersonaUser().id;
+  const other = String(match.user_id_2);
+  state.localLikes[me] = state.localLikes[me] || {};
+  state.localLikes[me][other] = "liked";
+
+  if (hashFraction(`${other}:${me}`) > 0.35) {
+    state.localLikes[other] = state.localLikes[other] || {};
+    state.localLikes[other][me] = "liked";
+  }
+
+  await loadSocialData(state.currentUser.user_id);
+  renderMatches(currentPersonaUser());
+  renderFriends();
+}
+
+async function askMatchCoach(otherUserId, question, answerTarget) {
+  if (!state.currentUser || !question.trim()) {
+    return;
+  }
+
+  answerTarget.textContent = "Thinking...";
+
+  if (state.apiReady) {
+    try {
+      const response = await apiRequest(`/social/match-coach/${state.currentUser.user_id}/${otherUserId}/ask`, {
+        method: "POST",
+        body: { question },
+      });
+      answerTarget.textContent = response.answer;
+    } catch (error) {
+      answerTarget.textContent = `Unable to answer: ${error.message}`;
+    }
+    return;
+  }
+
+  const match = state.socialMatches.find(item => String(item.user_id_2) === String(otherUserId));
+  if (!match) {
+    answerTarget.textContent = "No match context available.";
+    return;
+  }
+
+  if (question.toLowerCase().includes("why")) {
+    answerTarget.textContent = match.fit_explanation;
+  } else if (question.toLowerCase().includes("ice")) {
+    answerTarget.textContent = (match.safe_icebreakers || ["Start with a low-pressure weekly highlight question."])[0];
+  } else {
+    answerTarget.textContent = (match.first_meet_activities || ["Public daytime meetup near transit."])[0];
+  }
+}
+
 function renderMatches(persona) {
-  const fallbackMatches = fallbackMatchesForPersona(persona);
-  const records = state.matches.length ? state.matches : fallbackMatches;
+  const records = state.socialMatches.length ? state.socialMatches : fallbackSocialMatches(persona);
   document.querySelector("#match-list").innerHTML = records.map(renderMatchCard).join("");
 
   document.querySelectorAll("[data-action='detail']").forEach(button => {
@@ -661,7 +964,7 @@ function renderMatches(persona) {
       }
 
       matchModalTitle.textContent = `Match Detail · ${record.other_user_name || record.user_id_2}`;
-      matchModalBody.textContent = record.explanation;
+      matchModalBody.textContent = record.fit_explanation || record.explanation;
       matchModalTags.innerHTML = [
         `Route ${formatScore(record.route_similarity)}`,
         `Time ${formatScore(record.time_similarity)}`,
@@ -674,9 +977,20 @@ function renderMatches(persona) {
   });
 
   document.querySelectorAll("[data-action='like']").forEach(button => {
-    button.addEventListener("click", () => {
-      button.textContent = "Liked";
+    button.addEventListener("click", async () => {
+      const matchId = button.dataset.matchId;
+      const record = records.find(item => String(item.match_id) === String(matchId));
+      if (!record) {
+        return;
+      }
+
       button.disabled = true;
+      try {
+        await handleLike(record);
+      } catch (error) {
+        button.disabled = false;
+        privacyMessage.textContent = `Like failed: ${error.message}`;
+      }
     });
   });
 
@@ -686,6 +1000,28 @@ function renderMatches(persona) {
       if (card) {
         card.remove();
       }
+    });
+  });
+
+  document.querySelectorAll("[data-action='ask-match']").forEach(button => {
+    button.addEventListener("click", async () => {
+      const card = button.closest(".card");
+      if (!card) {
+        return;
+      }
+
+      const questionInput = card.querySelector("[data-match-question]");
+      const answerTarget = card.querySelector("[data-match-answer]");
+      if (!questionInput || !answerTarget) {
+        return;
+      }
+
+      const question = questionInput.value.trim();
+      if (!question) {
+        return;
+      }
+
+      await askMatchCoach(button.dataset.otherUserId, question, answerTarget);
     });
   });
 }
@@ -796,13 +1132,274 @@ function renderPrivacyControls() {
   });
 }
 
+function renderRoutineMirror() {
+  const mirror = state.routineMirror || fallbackRoutineMirror(currentPersonaUser());
+
+  routineMirrorSummary.textContent = mirror.weekly_summary || "Routine Mirror summary unavailable.";
+  const highlights = mirror.habit_highlights || [];
+  routineMirrorHighlights.innerHTML = highlights.length
+    ? highlights.map(item => `<span class="tag">${item}</span>`).join("")
+    : "<span class='tag'>No highlights yet</span>";
+
+  const alerts = mirror.routine_drift_alerts || [];
+  routineMirrorAlerts.textContent = alerts.length
+    ? `Routine drift alerts: ${alerts.join(" ")}`
+    : "Routine drift alerts: No major drift detected this week.";
+
+  routineChatLog.innerHTML = state.routineChatMessages.map(item => `
+    <div class="chat-message ${item.role === "user" ? "mine" : ""}">
+      ${item.text}
+      <span class="meta">${item.role === "user" ? "You" : "Routine Mirror"}</span>
+    </div>
+  `).join("");
+}
+
+async function handleRoutineAsk() {
+  if (!state.currentUser) {
+    return;
+  }
+
+  const question = routineChatInput.value.trim();
+  if (!question) {
+    return;
+  }
+
+  state.routineChatMessages.push({ role: "user", text: question });
+  routineChatInput.value = "";
+  renderRoutineMirror();
+
+  if (state.apiReady) {
+    try {
+      const response = await apiRequest(`/social/routine-mirror/${state.currentUser.user_id}/ask`, {
+        method: "POST",
+        body: { question },
+      });
+      state.routineChatMessages.push({ role: "assistant", text: response.answer });
+    } catch (error) {
+      state.routineChatMessages.push({ role: "assistant", text: `Unable to answer now: ${error.message}` });
+    }
+  } else {
+    const lower = question.toLowerCase();
+    if (lower.includes("drift")) {
+      state.routineChatMessages.push({ role: "assistant", text: "No severe drift signal in demo mode. Keep your anchor weekday habit stable." });
+    } else if (lower.includes("energy")) {
+      state.routineChatMessages.push({ role: "assistant", text: "Your energy peaks in evening and weekend midday windows." });
+    } else {
+      state.routineChatMessages.push({ role: "assistant", text: "Ask me about drift, energy, or habit consistency for focused guidance." });
+    }
+  }
+
+  renderRoutineMirror();
+}
+
+function renderLikedPeople() {
+  if (!state.likedPeople.length) {
+    likedList.innerHTML = "<p class='explain'>No liked people yet. Like someone in Matches first.</p>";
+    return;
+  }
+
+  likedList.innerHTML = state.likedPeople.map(person => `
+    <div class="liked-card">
+      <div class="friend-head">
+        <strong>${person.other_user_name}</strong>
+        <span class="tag ${person.is_mutual ? "gold" : "blue"}">${person.is_mutual ? "Mutual" : "Waiting"}</span>
+      </div>
+      <div class="tag-row">${(person.weekly_windows || []).map(window => `<span class="tag">${window.label}</span>`).join("")}</div>
+    </div>
+  `).join("");
+}
+
+async function loadActiveThread(friendUserId) {
+  if (!state.currentUser || !friendUserId) {
+    state.activeThread = null;
+    return;
+  }
+
+  if (state.apiReady) {
+    try {
+      state.activeThread = await apiRequest(`/social/chats/${state.currentUser.user_id}/${friendUserId}`);
+      return;
+    } catch (error) {
+      state.activeThread = null;
+      friendChatSubtitle.textContent = `Unable to load chat: ${error.message}`;
+      return;
+    }
+  }
+
+  const me = currentPersonaUser();
+  const other = personaByUserId(friendUserId);
+  const messages = ensureFallbackChat(me.id, other.id);
+  const activeFriend = state.friends.find(friend => String(friend.friend_user_id) === String(friendUserId));
+  state.activeThread = {
+    connection_id: activeFriend?.connection_id || chatKey(me.id, other.id),
+    friend_user_id: other.id,
+    friend_name: other.name,
+    weekly_windows: activeFriend?.weekly_windows || fallbackPlannerWindows(me, other),
+    place_scout: activeFriend?.place_scout || fallbackPlaceScout(me, other),
+    messages,
+  };
+}
+
+function renderFriendThread() {
+  safetyAlert.hidden = true;
+  safetyAlert.textContent = "";
+
+  if (!state.activeThread) {
+    friendChatTitle.textContent = "Friend Chat";
+    friendChatSubtitle.textContent = "Select a mutual friend to start chatting.";
+    friendWindows.innerHTML = "";
+    friendPlaceScout.innerHTML = "";
+    friendChatMessages.innerHTML = "";
+    return;
+  }
+
+  friendChatTitle.textContent = `Chat · ${state.activeThread.friend_name}`;
+  friendChatSubtitle.textContent = "Safety Layer is active and monitors risky meetup signals.";
+
+  friendWindows.innerHTML = (state.activeThread.weekly_windows || [])
+    .map(window => `<span class="tag blue">${window.label}</span>`)
+    .join("");
+
+  friendPlaceScout.innerHTML = (state.activeThread.place_scout || []).map(place => `
+    <div class="place-scout-item">
+      <strong>${place.name}</strong>
+      <p class="explain">${place.reason}</p>
+      <span class="tag gold">${place.category}</span>
+    </div>
+  `).join("");
+
+  friendChatMessages.innerHTML = (state.activeThread.messages || []).map(message => `
+    <div class="chat-message ${String(message.sender_user_id) === String(state.currentUser?.user_id) ? "mine" : ""}">
+      ${message.body}
+      <span class="meta">${String(message.sender_user_id) === String(state.currentUser?.user_id) ? "You" : state.activeThread.friend_name}</span>
+    </div>
+  `).join("");
+}
+
+async function renderFriends() {
+  renderLikedPeople();
+
+  if (!state.friends.length) {
+    friendList.innerHTML = "<p class='explain'>No mutual friends yet. A user appears here only when both of you like each other.</p>";
+    state.activeFriendId = null;
+    state.activeThread = null;
+    renderFriendThread();
+    return;
+  }
+
+  if (!state.activeFriendId || !state.friends.some(friend => String(friend.friend_user_id) === String(state.activeFriendId))) {
+    state.activeFriendId = String(state.friends[0].friend_user_id);
+    await loadActiveThread(state.activeFriendId);
+  }
+
+  friendList.innerHTML = state.friends.map(friend => `
+    <button class="friend-card ${String(friend.friend_user_id) === String(state.activeFriendId) ? "active" : ""}" data-friend-id="${friend.friend_user_id}">
+      <div class="friend-head">
+        <strong>${friend.friend_name}</strong>
+        <span class="tag gold">Mutual</span>
+      </div>
+      <div class="tag-row">${(friend.weekly_windows || []).map(window => `<span class="tag">${window.label}</span>`).join("")}</div>
+    </button>
+  `).join("");
+
+  friendList.querySelectorAll("[data-friend-id]").forEach(button => {
+    button.addEventListener("click", async () => {
+      state.activeFriendId = button.dataset.friendId;
+      await loadActiveThread(state.activeFriendId);
+      await renderFriends();
+    });
+  });
+
+  renderFriendThread();
+}
+
+async function handleFriendSend() {
+  if (!state.currentUser || !state.activeFriendId) {
+    return;
+  }
+
+  const body = friendChatInput.value.trim();
+  if (!body) {
+    return;
+  }
+
+  friendChatInput.value = "";
+
+  if (state.apiReady) {
+    try {
+      const message = await apiRequest(`/social/chats/${state.currentUser.user_id}/${state.activeFriendId}/messages`, {
+        method: "POST",
+        body: {
+          sender_user_id: state.currentUser.user_id,
+          body,
+        },
+      });
+
+      if (state.activeThread) {
+        state.activeThread.messages.push(message);
+      }
+
+      if (message.safety_flagged) {
+        safetyAlert.hidden = false;
+        safetyAlert.textContent = `Safety alert: ${message.safety_reason}. ${message.safety_alternatives.join(" ")}`;
+      } else {
+        safetyAlert.hidden = true;
+      }
+      renderFriendThread();
+    } catch (error) {
+      safetyAlert.hidden = false;
+      safetyAlert.textContent = `Send failed: ${error.message}`;
+    }
+    return;
+  }
+
+  const me = currentPersonaUser().id;
+  const key = chatKey(me, state.activeFriendId);
+  const message = {
+    message_id: `${key}-${Date.now()}`,
+    sender_user_id: me,
+    body,
+    safety_flagged: /my place|hotel|midnight|send money|secret/i.test(body),
+    safety_reason: /my place|hotel/i.test(body)
+      ? "Private-location pressure before trust"
+      : /midnight|late night/i.test(body)
+        ? "Very late meetup timing"
+        : /send money/i.test(body)
+          ? "Money request signal"
+          : /secret/i.test(body)
+            ? "Secrecy request"
+            : null,
+    safety_alternatives: [
+      "Suggest a public venue.",
+      "Prefer daytime or early evening windows.",
+      "Pick a place near transit.",
+    ],
+    created_at: new Date().toISOString(),
+  };
+  state.localChats[key] = state.localChats[key] || [];
+  state.localChats[key].push(message);
+
+  if (state.activeThread) {
+    state.activeThread.messages.push(message);
+  }
+
+  if (message.safety_flagged) {
+    safetyAlert.hidden = false;
+    safetyAlert.textContent = `Safety alert: ${message.safety_reason}. ${message.safety_alternatives.join(" ")}`;
+  } else {
+    safetyAlert.hidden = true;
+  }
+
+  renderFriendThread();
+}
+
 function updatePageHeader(sectionId) {
   const copy = STATIC_DATA.pageCopy[sectionId] || STATIC_DATA.pageCopy.routine;
   document.querySelector("#page-title").textContent = copy[0];
   document.querySelector("#page-subtitle").textContent = copy[1];
 }
 
-function renderAll() {
+async function renderAll() {
   const persona = currentPersonaUser();
   renderMap(persona);
   renderRoutines(persona);
@@ -811,6 +1408,8 @@ function renderAll() {
   renderRecommendations(persona);
   renderPrivacyRules();
   renderPrivacyControls();
+  renderRoutineMirror();
+  await renderFriends();
 }
 
 async function handleUserSwitch(userId) {
@@ -822,6 +1421,9 @@ async function handleUserSwitch(userId) {
   state.currentUser = selected;
   userSelect.value = selected.user_id;
   privacyMessage.textContent = "";
+  state.routineChatMessages = [];
+  state.activeFriendId = null;
+  state.activeThread = null;
 
   rerunButton.disabled = true;
   try {
@@ -829,12 +1431,13 @@ async function handleUserSwitch(userId) {
   } catch (error) {
     state.usingFallback = true;
     state.matches = fallbackMatchesForPersona(currentPersonaUser());
+    await loadSocialData(selected.user_id);
     privacyMessage.textContent = `Using fallback mode: ${error.message}`;
   } finally {
     rerunButton.disabled = false;
   }
 
-  renderAll();
+  await renderAll();
 }
 
 async function handleLogin() {
@@ -895,7 +1498,7 @@ function setupActions() {
       privacyMessage.textContent = `Recompute failed: ${error.message}`;
     } finally {
       rerunButton.disabled = false;
-      renderAll();
+      await renderAll();
     }
   });
 
@@ -909,9 +1512,12 @@ function setupActions() {
       state.profile = null;
       state.dailyRoutes = [];
       state.matches = fallbackMatchesForPersona(currentPersonaUser());
+      state.socialMatches = fallbackSocialMatches(currentPersonaUser());
       state.recommendations = [];
+      state.likedPeople = [];
+      state.friends = [];
       privacyMessage.textContent = "Local demo history cleared.";
-      renderAll();
+      await renderAll();
       return;
     }
 
@@ -923,8 +1529,11 @@ function setupActions() {
       state.dailyRoutes = [];
       state.profile = null;
       state.matches = [];
+      state.socialMatches = [];
       state.recommendations = [];
-      renderAll();
+      state.likedPeople = [];
+      state.friends = [];
+      await renderAll();
     } catch (error) {
       privacyMessage.textContent = `Delete failed: ${error.message}`;
     } finally {
@@ -934,6 +1543,28 @@ function setupActions() {
 
   matchModalClose.addEventListener("click", () => {
     matchModal.classList.remove("visible");
+  });
+
+  routineChatSend.addEventListener("click", () => {
+    void handleRoutineAsk();
+  });
+
+  friendChatSend.addEventListener("click", () => {
+    void handleFriendSend();
+  });
+
+  routineChatInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void handleRoutineAsk();
+    }
+  });
+
+  friendChatInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void handleFriendSend();
+    }
   });
 
   loginContinue.addEventListener("click", handleLogin);
@@ -955,7 +1586,7 @@ async function init() {
 
   populateUserSelect();
   updatePageHeader("routine");
-  renderAll();
+  await renderAll();
 }
 
-init();
+void init();

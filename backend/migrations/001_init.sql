@@ -152,6 +152,38 @@ CREATE TABLE IF NOT EXISTS recommendations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS social_likes (
+  like_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  from_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  to_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  status TEXT NOT NULL CHECK (status IN ('liked', 'passed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (from_user_id, to_user_id),
+  CHECK (from_user_id <> to_user_id)
+);
+
+CREATE TABLE IF NOT EXISTS friend_connections (
+  connection_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_a UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  user_b UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (user_a <> user_b),
+  CHECK (user_a < user_b),
+  UNIQUE (user_a, user_b)
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  message_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  connection_id UUID NOT NULL REFERENCES friend_connections(connection_id) ON DELETE CASCADE,
+  sender_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  safety_flagged BOOLEAN NOT NULL DEFAULT FALSE,
+  safety_reason TEXT,
+  safety_alternatives JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_location_logs_user_time ON location_logs (user_id, "timestamp");
 CREATE INDEX IF NOT EXISTS idx_location_logs_cell ON location_logs (cell_id);
 CREATE INDEX IF NOT EXISTS idx_location_logs_geom ON location_logs USING GIST (geom);
@@ -161,3 +193,8 @@ CREATE INDEX IF NOT EXISTS idx_profiles_user_period ON routine_profiles (user_id
 CREATE INDEX IF NOT EXISTS idx_matches_user1_score ON user_matches (user_id_1, final_score DESC);
 CREATE INDEX IF NOT EXISTS idx_matches_user2_score ON user_matches (user_id_2, final_score DESC);
 CREATE INDEX IF NOT EXISTS idx_reco_user_score ON recommendations (user_id, score DESC);
+CREATE INDEX IF NOT EXISTS idx_social_likes_from_to ON social_likes (from_user_id, to_user_id);
+CREATE INDEX IF NOT EXISTS idx_social_likes_to_status ON social_likes (to_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_friend_connections_user_a ON friend_connections (user_a);
+CREATE INDEX IF NOT EXISTS idx_friend_connections_user_b ON friend_connections (user_b);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conn_time ON chat_messages (connection_id, created_at);

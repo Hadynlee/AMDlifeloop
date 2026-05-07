@@ -697,6 +697,85 @@ select {
   font-size: 13px;
 }
 
+.chat-shell {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcf9;
+  padding: 12px;
+}
+
+.chat-messages {
+  display: grid;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.chat-message {
+  padding: 10px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.chat-message.mine {
+  background: var(--green-2);
+  border-color: rgba(47, 125, 92, 0.28);
+}
+
+.chat-message .meta {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.chat-input-row {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.friend-list,
+.friend-mini-list {
+  display: grid;
+  gap: 10px;
+}
+
+.friend-card,
+.liked-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcf9;
+  padding: 12px;
+}
+
+.friend-card.active {
+  border-color: var(--green);
+  box-shadow: 0 12px 32px rgba(47, 125, 92, 0.12);
+}
+
+.friend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.place-scout-list {
+  display: grid;
+  gap: 8px;
+}
+
+.place-scout-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcf9;
+  padding: 10px;
+}
+
 .section {
   display: none;
 }
@@ -766,7 +845,7 @@ select {
   }
 
   nav {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .nav-button {
@@ -828,7 +907,7 @@ select {
 
   nav {
     height: 100%;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 2px;
   }
 

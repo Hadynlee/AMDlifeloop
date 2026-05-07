@@ -80,6 +80,64 @@ USER_BLUEPRINTS = [
       ("cafe", 1.3266, 103.8528, "cafe", time(16, 0), 90),
     ],
   },
+  {
+    "name": "Noah Tan",
+    "email": "noah@example.com",
+    "interests": ["coding", "night-food", "board-games"],
+    "weekday_stops": [
+      ("office", 1.2860, 103.8520, "work", time(9, 30), 470),
+      ("cafe", 1.2988, 103.8395, "cafe", time(18, 30), 70),
+      ("food", 1.3055, 103.8568, "food", time(20, 0), 65),
+    ],
+    "weekend_stops": [
+      ("games", 1.3215, 103.8612, "hobby", time(14, 0), 150),
+      ("food", 1.3130, 103.8488, "food", time(18, 30), 75),
+    ],
+  },
+  {
+    "name": "Priya Das",
+    "email": "priya@example.com",
+    "interests": ["yoga", "brunch", "reading"],
+    "weekday_stops": [
+      ("home", 1.3360, 103.7980, "home", time(6, 45), 55),
+      ("park", 1.3335, 103.8091, "yoga", time(7, 45), 75),
+      ("office", 1.2942, 103.8501, "work", time(10, 0), 430),
+      ("food", 1.3046, 103.8330, "dinner", time(19, 10), 70),
+    ],
+    "weekend_stops": [
+      ("park", 1.3432, 103.8160, "walk", time(8, 30), 95),
+      ("cafe", 1.3202, 103.8424, "brunch", time(11, 30), 110),
+      ("library", 1.2960, 103.8528, "reading", time(16, 30), 90),
+    ],
+  },
+  {
+    "name": "Ethan Lim",
+    "email": "ethan@example.com",
+    "interests": ["cycling", "hawker", "photography"],
+    "weekday_stops": [
+      ("office", 1.2798, 103.8480, "work", time(9, 15), 500),
+      ("cycling", 1.3062, 103.8544, "ride", time(18, 55), 80),
+      ("food", 1.3128, 103.8698, "food", time(20, 40), 55),
+    ],
+    "weekend_stops": [
+      ("park", 1.2992, 103.8120, "cycling", time(8, 0), 150),
+      ("cafe", 1.3088, 103.8362, "photo", time(14, 30), 85),
+    ],
+  },
+  {
+    "name": "Hana Lee",
+    "email": "hana@example.com",
+    "interests": ["dance", "cafes", "desserts"],
+    "weekday_stops": [
+      ("campus", 1.3020, 103.7732, "study", time(10, 0), 210),
+      ("studio", 1.3132, 103.8438, "dance", time(18, 20), 95),
+      ("food", 1.3208, 103.8554, "dessert", time(20, 30), 60),
+    ],
+    "weekend_stops": [
+      ("cafe", 1.3042, 103.8300, "cafe", time(11, 0), 125),
+      ("arts", 1.2900, 103.8530, "arts", time(16, 0), 100),
+    ],
+  },
 ]
 
 
@@ -92,6 +150,16 @@ PLACE_SEEDS = [
   ("Transit Bites Bar", 1.3383, 103.8291, "food", 4.1, 1, False),
   ("Gallery Roast", 1.2922, 103.8535, "cafe", 4.5, 2, False),
   ("Marina Motion Gym", 1.2845, 103.8518, "fitness", 4.7, 3, True),
+  ("Sunlit Brunch Hall", 1.3205, 103.8426, "food", 4.4, 2, False),
+  ("City Boardgame Loft", 1.3212, 103.8610, "cafe", 4.3, 2, False),
+  ("Riverside Walk Commons", 1.3045, 103.8325, "nature", 4.6, 0, False),
+  ("Urban Cycle Stop", 1.3068, 103.8542, "fitness", 4.5, 1, True),
+  ("Quiet Shelf Cafe", 1.2962, 103.8525, "cafe", 4.4, 2, False),
+  ("Transit Square Food Hub", 1.3131, 103.8490, "food", 4.2, 1, True),
+  ("Open Lawn Activity Park", 1.3430, 103.8162, "nature", 4.3, 0, False),
+  ("Studio Steps Coffee", 1.3134, 103.8440, "cafe", 4.2, 2, False),
+  ("Harbor Evenings Kitchen", 1.3085, 103.8360, "food", 4.4, 2, True),
+  ("Neighborhood Dessert Lab", 1.3209, 103.8552, "food", 4.5, 2, False),
 ]
 
 
@@ -177,6 +245,19 @@ def _replace_interests(conn, user_id: str, interests: list[str]) -> None:
 
 def _reset_user_data(conn, user_id: str) -> None:
   with conn.cursor() as cur:
+    cur.execute(
+      """
+      DELETE FROM chat_messages
+      WHERE connection_id IN (
+        SELECT connection_id
+        FROM friend_connections
+        WHERE user_a = %s OR user_b = %s
+      )
+      """,
+      (user_id, user_id),
+    )
+    cur.execute("DELETE FROM friend_connections WHERE user_a = %s OR user_b = %s", (user_id, user_id))
+    cur.execute("DELETE FROM social_likes WHERE from_user_id = %s OR to_user_id = %s", (user_id, user_id))
     cur.execute("DELETE FROM recommendations WHERE user_id = %s", (user_id,))
     cur.execute("DELETE FROM user_matches WHERE user_id_1 = %s OR user_id_2 = %s", (user_id, user_id))
     cur.execute("DELETE FROM routine_profiles WHERE user_id = %s", (user_id,))
@@ -477,10 +558,106 @@ def _recalculate_matches_and_recos(conn, user_ids: list[str]) -> None:
         cur.execute(
           """
           INSERT INTO recommendations (user_id, place_id, reason, score, shown_at)
-          VALUES (%s, %s, %s, %s, NOW())
+        VALUES (%s, %s, %s, %s, NOW())
           """,
           (user_a, reco["place_id"], reco["reason"], reco["score"]),
         )
+
+
+def _seed_social_graph(conn, user_ids_by_email: dict[str, str]) -> None:
+  mutual_pairs = [
+    ("jia@example.com", "mei@example.com"),
+    ("jia@example.com", "arjun@example.com"),
+    ("sara@example.com", "priya@example.com"),
+    ("ethan@example.com", "noah@example.com"),
+    ("hana@example.com", "mei@example.com"),
+  ]
+  one_way_pairs = [
+    ("jia@example.com", "hana@example.com"),
+    ("priya@example.com", "jia@example.com"),
+    ("noah@example.com", "sara@example.com"),
+  ]
+
+  with conn.cursor() as cur:
+    cur.execute("DELETE FROM chat_messages")
+    cur.execute("DELETE FROM friend_connections")
+    cur.execute("DELETE FROM social_likes")
+
+    for left_email, right_email in mutual_pairs:
+      left = user_ids_by_email.get(left_email)
+      right = user_ids_by_email.get(right_email)
+      if not left or not right:
+        continue
+
+      user_a, user_b = (left, right) if left < right else (right, left)
+      cur.execute(
+        """
+        INSERT INTO friend_connections (user_a, user_b)
+        VALUES (%s, %s)
+        ON CONFLICT (user_a, user_b) DO NOTHING
+        RETURNING connection_id
+        """,
+        (user_a, user_b),
+      )
+      row = cur.fetchone()
+      if not row:
+        cur.execute(
+          """
+          SELECT connection_id
+          FROM friend_connections
+          WHERE user_a = %s AND user_b = %s
+          """,
+          (user_a, user_b),
+        )
+        row = cur.fetchone()
+
+      if not row:
+        continue
+
+      cur.execute(
+        """
+        INSERT INTO social_likes (from_user_id, to_user_id, status, created_at, updated_at)
+        VALUES (%s, %s, 'liked', NOW(), NOW()),
+               (%s, %s, 'liked', NOW(), NOW())
+        ON CONFLICT (from_user_id, to_user_id)
+        DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
+        """,
+        (left, right, right, left),
+      )
+
+      cur.execute(
+        """
+        INSERT INTO chat_messages (
+          connection_id, sender_user_id, body, safety_flagged, safety_reason, safety_alternatives
+        )
+        VALUES
+          (%s, %s, %s, FALSE, NULL, '[]'::jsonb),
+          (%s, %s, %s, FALSE, NULL, '[]'::jsonb)
+        """,
+        (
+          row["connection_id"],
+          left,
+          "Hey, I saw we both like public cafe meetups near transit. Want to plan for this weekend?",
+          row["connection_id"],
+          right,
+          "Sounds good. Daytime works best for me, maybe around brunch hours.",
+        ),
+      )
+
+    for from_email, to_email in one_way_pairs:
+      from_user = user_ids_by_email.get(from_email)
+      to_user = user_ids_by_email.get(to_email)
+      if not from_user or not to_user:
+        continue
+      cur.execute(
+        """
+        INSERT INTO social_likes (from_user_id, to_user_id, status, created_at, updated_at)
+        VALUES (%s, %s, 'liked', NOW(), NOW())
+        ON CONFLICT (from_user_id, to_user_id)
+        DO UPDATE SET status = EXCLUDED.status, updated_at = NOW()
+        """,
+        (from_user, to_user),
+      )
 
 
 def seed_database(days: int = 35) -> None:
@@ -489,10 +666,12 @@ def seed_database(days: int = 35) -> None:
 
   with connect() as conn:
     user_ids: list[str] = []
+    user_ids_by_email: dict[str, str] = {}
 
     for blueprint in USER_BLUEPRINTS:
       user_id = _ensure_user(conn, blueprint["name"], blueprint["email"])
       user_ids.append(user_id)
+      user_ids_by_email[blueprint["email"]] = user_id
       _replace_interests(conn, user_id, blueprint["interests"])
       _reset_user_data(conn, user_id)
 
@@ -508,6 +687,7 @@ def seed_database(days: int = 35) -> None:
 
     _seed_places(conn)
     _recalculate_matches_and_recos(conn, user_ids)
+    _seed_social_graph(conn, user_ids_by_email)
     conn.commit()
 
   print(f"Seed complete. Users seeded: {len(USER_BLUEPRINTS)}")

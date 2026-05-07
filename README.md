@@ -76,6 +76,7 @@ docker compose down
 ```
 
 API key config is centralized in the project root `.env` file:
+- `SOCIAL_AGENT_API_KEY`: single key field reserved for social AI services (Match Coach, Routine Mirror follow-up, etc.)
 - `GOOGLE_PLACES_API_KEY`: enables live Google Places recommendation sourcing
 - `GOOGLE_MAPS_API_KEY`: enables Google Maps rendering in the frontend (falls back to `GOOGLE_PLACES_API_KEY` when empty)
 - `GOOGLE_PLACES_SEARCH_RADIUS_METERS`: nearby-search radius for live place fetching
@@ -106,6 +107,18 @@ API key config is centralized in the project root `.env` file:
 
 - `POST /match/recalculate/{user_id}`
 - `GET /matches/{user_id}`
+
+### Social Services
+
+- `GET /social/match-coach/{user_id}`
+- `POST /social/likes`
+- `GET /social/liked/{user_id}`
+- `GET /social/friends/{user_id}`
+- `GET /social/chats/{user_id}/{friend_user_id}`
+- `POST /social/chats/{user_id}/{friend_user_id}/messages`
+- `GET /social/routine-mirror/{user_id}`
+- `POST /social/routine-mirror/{user_id}/ask`
+- `POST /social/match-coach/{user_id}/{other_user_id}/ask`
 
 ### Recommendations
 

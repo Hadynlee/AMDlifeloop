@@ -150,6 +150,121 @@ class RecommendationOut(BaseModel):
   place: PlaceOut | None = None
 
 
+class MatchCoachOut(BaseModel):
+  match_id: UUID
+  user_id_1: UUID
+  user_id_2: UUID
+  other_user_name: str | None = None
+  route_similarity: float
+  time_similarity: float
+  place_similarity: float
+  lifestyle_similarity: float
+  interest_similarity: float
+  final_score: float
+  fit_explanation: str
+  discovery_note: str
+  like_state: str
+  is_mutual: bool
+  safe_icebreakers: list[str]
+  first_meet_activities: list[str]
+  created_at: datetime
+
+
+class MatchLikeIn(BaseModel):
+  from_user_id: UUID
+  to_user_id: UUID
+  action: str = Field(pattern="^(like|pass)$")
+
+
+class MatchLikeOut(BaseModel):
+  from_user_id: UUID
+  to_user_id: UUID
+  like_state: str
+  is_mutual: bool
+  friend_connection_id: UUID | None = None
+  safe_icebreakers: list[str]
+  first_meet_activities: list[str]
+
+
+class WeeklyWindowOut(BaseModel):
+  label: str
+  bucket: str
+  daypart: str
+  confidence: str
+
+
+class PlaceScoutOut(BaseModel):
+  name: str
+  category: str
+  rating: float | None = None
+  price_level: int | None = None
+  reason: str
+  score: float
+
+
+class FriendOut(BaseModel):
+  connection_id: UUID
+  friend_user_id: UUID
+  friend_name: str
+  connected_at: datetime
+  weekly_windows: list[WeeklyWindowOut]
+  place_scout: list[PlaceScoutOut]
+
+
+class LikedUserOut(BaseModel):
+  other_user_id: UUID
+  other_user_name: str
+  like_state: str
+  is_mutual: bool
+  weekly_windows: list[WeeklyWindowOut]
+
+
+class ChatMessageIn(BaseModel):
+  sender_user_id: UUID
+  body: str = Field(min_length=1, max_length=1200)
+
+
+class SafetyAlertOut(BaseModel):
+  flagged: bool
+  reason: str | None = None
+  alternatives: list[str] = Field(default_factory=list)
+
+
+class ChatMessageOut(BaseModel):
+  message_id: UUID
+  connection_id: UUID
+  sender_user_id: UUID
+  body: str
+  safety_flagged: bool
+  safety_reason: str | None
+  safety_alternatives: list[str]
+  created_at: datetime
+
+
+class ChatThreadOut(BaseModel):
+  connection_id: UUID
+  friend_user_id: UUID
+  friend_name: str
+  weekly_windows: list[WeeklyWindowOut]
+  place_scout: list[PlaceScoutOut]
+  messages: list[ChatMessageOut]
+
+
+class FollowupQuestionIn(BaseModel):
+  question: str = Field(min_length=1, max_length=1000)
+
+
+class FollowupAnswerOut(BaseModel):
+  answer: str
+
+
+class RoutineMirrorOut(BaseModel):
+  weekly_summary: str
+  habit_highlights: list[str]
+  energy_pattern: list[str]
+  routine_drift_alerts: list[str]
+
+
 class RuntimeConfigOut(BaseModel):
   map_provider: str
   places_provider: str
