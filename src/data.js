@@ -97,11 +97,12 @@ window.LIFELOOP_DATA = {
     ["Lifestyle labels only", "The UI says evening sports routine, not exact venue and time."],
     ["Sponsored mission guardrail", "Merchant missions must be relevant before they can appear."]
   ],
+  apiBase: `${window.location.protocol}//${window.location.hostname}:8000`,
   pageCopy: {
-    routine: ["My Routine Map", "Generalized zones show repeated lifestyle patterns while hiding exact real-time location."],
-    summary: ["AI Lifestyle Summary", "Agent outputs transform location logs into explainable tags, summaries, and privacy-safe insights."],
-    matches: ["Recommended Connections", "Users are matched by lifestyle similarity, not live proximity."],
-    missions: ["Missions & Rewards", "AI-generated missions turn everyday routes into local discovery and merchant value."],
-    privacy: ["Privacy Guardrails", "The safety layer redacts sensitive details before any social recommendation is shown."]
+    routine: ["My Routine", "Generalized zones summarize repeated movement patterns while hiding exact GPS and real-time location."],
+    summary: ["Home Dashboard", "Track routine coverage, top categories, and privacy-safe matching progress over the latest 30 days."],
+    matches: ["Privacy-Safe Matches", "Match scores are computed from approximate cells, route patterns, and broad activity windows only."],
+    missions: ["Recommended Places", "Nearby places are suggested from routine cells and category fit, not exact path disclosure."],
+    privacy: ["Privacy Controls", "Pause tracking or matching anytime, and permanently delete stored location history on demand."]
   }
 };

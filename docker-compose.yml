@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: lifeloop
+      POSTGRES_USER: lifeloop
+      POSTGRES_PASSWORD: lifeloop
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifeloop -d lifeloop"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "5432:5432"
+    volumes:
+      - lifeloop_db_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql://lifeloop:lifeloop@db:5432/lifeloop
+      GRID_SIZE_METERS: 350
+      APP_ENV: docker
+      GOOGLE_PLACES_API_KEY: ""
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/migrations:/app/migrations
+
+  web:
+    build:
+      context: .
+    depends_on:
+      - api
+    ports:
+      - "8080:8080"
+
+volumes:
+  lifeloop_db_data:

@@ -23,21 +23,21 @@
       </div>
 
       <nav aria-label="Primary">
-        <button class="nav-button active" data-section="routine" title="Routine Map">
+        <button class="nav-button active" data-section="routine" title="My Routine">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg>
-          <span>Routine Map</span>
+          <span>Routine</span>
         </button>
-        <button class="nav-button" data-section="summary" title="AI Summary">
+        <button class="nav-button" data-section="summary" title="Home">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-          <span>AI Summary</span>
+          <span>Home</span>
         </button>
-        <button class="nav-button" data-section="matches" title="Connections">
+        <button class="nav-button" data-section="matches" title="Matches">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <span>Connections</span>
+          <span>Matches</span>
         </button>
-        <button class="nav-button" data-section="missions" title="Missions">
+        <button class="nav-button" data-section="missions" title="Places">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>
-          <span>Missions</span>
+          <span>Places</span>
         </button>
         <button class="nav-button" data-section="privacy" title="Privacy">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.68 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1v7z"/><path d="M9 12l2 2 4-4"/></svg>
@@ -55,8 +55,8 @@
       <header class="topbar">
         <div>
           <p class="kicker">Agentic lifestyle companion</p>
-          <h2 id="page-title">My Routine Map</h2>
-          <p class="subtitle" id="page-subtitle">LifeLoop learns repeated movement patterns, then recommends people, places, and missions without exposing precise live location.</p>
+          <h2 id="page-title">My Routine</h2>
+          <p class="subtitle" id="page-subtitle">LifeLoop learns monthly movement patterns, then matches people and places without exposing exact live location.</p>
         </div>
         <div class="toolbar">
           <div class="select-wrap">
@@ -75,14 +75,14 @@
           <div class="panel">
             <div class="panel-head">
               <h3>Generalized Routine Zones</h3>
-              <span>No exact live location</span>
+              <span>Approximate grid areas only</span>
             </div>
             <div class="map" id="map"></div>
           </div>
           <div class="panel">
             <div class="panel-head">
               <h3>Detected Loops</h3>
-              <span id="loop-count">0 routines</span>
+              <span id="loop-count">0 loops</span>
             </div>
             <div class="routine-list" id="routine-list"></div>
           </div>
@@ -95,22 +95,23 @@
             <p class="summary-text" id="summary-text"></p>
             <div class="tag-row" id="summary-tags"></div>
             <div class="metric-row" id="metrics"></div>
+            <div class="inline-note inset-top" id="home-note"></div>
           </div>
           <div class="grid three">
             <div class="panel pad">
               <div class="iconbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M9 13v2"/><path d="M15 13v2"/></svg></div>
-              <h3>Routine Understanding Agent</h3>
-              <p class="explain">Clusters repeated visits, dwell time, and time patterns into a private lifestyle profile.</p>
+              <h3>Onboarding & Permission</h3>
+              <p class="explain" id="onboarding-copy">Explain why tracking is approximate, privacy-safe, and revocable at any time.</p>
             </div>
             <div class="panel pad">
               <div class="iconbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
-              <h3>Mission Agent</h3>
-              <p class="explain">Turns familiar routes into small exploration goals that fit the user’s habits.</p>
+              <h3>Routine Profile Window</h3>
+              <p class="explain" id="profile-window-copy">Build profile using latest 30 days of compressed routes and stay points.</p>
             </div>
             <div class="panel pad">
               <div class="iconbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.68 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1v7z"/></svg></div>
-              <h3>Privacy Agent</h3>
-              <p class="explain">Generalizes sensitive places and removes exact times before showing recommendations.</p>
+              <h3>Live Privacy Guardrail</h3>
+              <p class="explain" id="guardrail-copy">Matching and recommendations are automatically disabled when privacy toggles are off.</p>
             </div>
           </div>
         </div>
@@ -124,27 +125,60 @@
         <div class="grid two">
           <div class="panel">
             <div class="panel-head">
-              <h3>Generated Missions</h3>
-              <span id="points-total">0 possible points</span>
+              <h3>Recommended Places</h3>
+              <span id="points-total">0 results</span>
             </div>
             <div id="mission-list"></div>
           </div>
           <div class="panel pad">
-            <h3>Rewards Marketplace</h3>
-            <p class="explain">Merchant missions are only shown when they match a user’s lifestyle and route fit.</p>
+            <h3>Route-Aware Missions</h3>
+            <p class="explain">Missions are generated from frequent routine categories and compressed movement loops.</p>
             <div class="reward-grid inset-top" id="reward-list"></div>
           </div>
         </div>
       </section>
 
       <section id="privacy" class="section">
-        <div class="panel pad">
-          <h3>Privacy & Safety Filter</h3>
-          <p class="explain">The app converts raw movement data into safer lifestyle signals before anything becomes social.</p>
-          <div class="privacy-grid inset-top" id="privacy-grid"></div>
+        <div class="grid two">
+          <div class="panel pad">
+            <h3>Privacy Controls</h3>
+            <p class="explain">Users can pause tracking, pause matching, disable recommendations, and remove location history.</p>
+            <div class="settings-grid inset-top" id="privacy-settings-form"></div>
+            <div class="settings-actions inset-top">
+              <button class="connect danger" id="delete-history">Delete Location History</button>
+              <span class="explain" id="privacy-message"></span>
+            </div>
+          </div>
+          <div class="panel pad">
+            <h3>Safety Rules</h3>
+            <p class="explain">These guardrails are applied before any routine profile is matched or shared.</p>
+            <div class="privacy-grid inset-top" id="privacy-grid"></div>
+          </div>
         </div>
       </section>
     </main>
+  </div>
+
+  <div class="overlay visible" id="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-title">
+    <div class="overlay-card">
+      <h3 id="login-title">Mock Login</h3>
+      <p class="explain">Use an existing seeded account or create one. This MVP uses fake data and approximate location cells.</p>
+      <label class="field-label" for="login-name">Name</label>
+      <input class="field-input" id="login-name" placeholder="Your name">
+      <label class="field-label" for="login-email">Email</label>
+      <input class="field-input" id="login-email" type="email" placeholder="you@example.com">
+      <button class="connect" id="login-continue">Continue</button>
+      <span class="explain" id="login-message"></span>
+    </div>
+  </div>
+
+  <div class="overlay" id="match-modal" role="dialog" aria-modal="true" aria-labelledby="match-modal-title">
+    <div class="overlay-card">
+      <h3 id="match-modal-title">Match Detail</h3>
+      <p class="explain" id="match-modal-body"></p>
+      <div class="tag-row" id="match-modal-tags"></div>
+      <button class="connect" id="match-modal-close">Close</button>
+    </div>
   </div>
 
   <script src="src/data.js"></script>

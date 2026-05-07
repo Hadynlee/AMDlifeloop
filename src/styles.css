@@ -28,7 +28,8 @@ body {
 }
 
 button,
-select {
+select,
+input {
   font: inherit;
 }
 
@@ -443,6 +444,16 @@ select {
   margin: 0;
 }
 
+.inline-note {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fbfcf9;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .metric-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -529,9 +540,25 @@ select {
   cursor: pointer;
 }
 
+.connect.secondary {
+  background: #ffffff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.connect.danger {
+  background: #5f1f18;
+}
+
 .connect svg {
   width: 18px;
   height: 18px;
+}
+
+.card-actions {
+  margin-top: auto;
+  display: grid;
+  gap: 8px;
 }
 
 .mission {
@@ -600,6 +627,44 @@ select {
   font-size: 13px;
 }
 
+.settings-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.setting {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fbfcf9;
+}
+
+.setting label {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.setting span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.toggle {
+  width: 44px;
+  height: 24px;
+}
+
 .reward-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -638,6 +703,51 @@ select {
 
 .inset-top {
   margin-top: 16px;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(24, 33, 29, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 60;
+}
+
+.overlay.visible {
+  display: flex;
+}
+
+.overlay-card {
+  width: min(100%, 420px);
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 60px rgba(24, 33, 29, 0.2);
+  padding: 18px;
+}
+
+.overlay-card h3 {
+  margin: 0 0 8px;
+}
+
+.field-label {
+  display: block;
+  margin: 10px 0 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.field-input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  padding: 0 12px;
 }
 
 @media (max-width: 1060px) {
@@ -993,6 +1103,10 @@ select {
     width: 100%;
   }
 
+  .settings-actions .connect {
+    width: 100%;
+  }
+
   .mission {
     grid-template-columns: 42px 1fr;
     align-items: start;
@@ -1026,6 +1140,17 @@ select {
 
   .rule {
     border-radius: 16px;
+  }
+
+  .overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .overlay-card {
+    width: 100%;
+    border-radius: 20px 20px 0 0;
+    padding: 16px;
   }
 }
 

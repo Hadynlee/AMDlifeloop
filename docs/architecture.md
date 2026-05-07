@@ -1,47 +1,57 @@
-# LifeLoop AI Architecture
+# LifeLoop MVP Architecture
 
-## MVP Data Flow
+## High-Level Flow
 
 ```text
-Simulated lifestyle logs
+Mobile/Web client (mock login + mobile-first UI)
         |
         v
-Generalized routine zones
+FastAPI API layer
+  - /location/* ingest
+  - /process/* derive routine signals
+  - /match/* score compatible users
+  - /recommendations/* rank route-relevant places
         |
         v
-Lifestyle vector and inferred tags
-        |
-        +--> Matching engine
-        |       |
-        |       v
-        |   Privacy-safe connection cards
-        |
-        +--> Mission generator
-        |       |
-        |       v
-        |   Route-relevant missions and rewards
-        |
-        +--> Privacy guardrails
-                |
-                v
-            Redacted user-facing explanations
+PostgreSQL + PostGIS
+  - raw location_logs
+  - generalized cell_id signals
+  - stay_points / daily_routes
+  - routine_profiles / user_matches / recommendations
 ```
 
-## Core Components
+## Privacy Pipeline
 
-- `src/data.js`: simulated users, routine zones, lifestyle vectors, mission templates, reward copy, and privacy rules.
-- `src/app.js`: rendering logic, cosine similarity matching, mission selection, navigation, and user switching.
-- `src/icons.js`: inline SVG icons used by the UI.
-- `src/styles.css`: responsive dashboard styling.
+```text
+Raw GPS logs
+  -> convert_gps_to_cell (300-500m)
+  -> detect_stay_points (150m / 15min)
+  -> compress_route
+  -> build 30-day routine profile
+  -> similarity scoring
+  -> privacy-safe explanation
+```
 
-## Agent Mapping
+## Core Modules
 
-- Routine Understanding Agent: represented by routine summaries, tags, zones, and metrics.
-- Matching Agent: represented by cosine similarity across lifestyle vectors.
-- Mission Agent: represented by lifestyle-weighted mission selection.
-- Privacy and Safety Agent: represented by generalized wording and explicit privacy rules.
-- Business Recommendation Agent: represented by route-relevant mock rewards.
+- `backend/app/services/geo.py`: grid conversion, route compression, distance helpers
+- `backend/app/services/routine.py`: stay detection, daily route build, routine profile generation
+- `backend/app/services/matching.py`: score components + weighted final score + safe explanation
+- `backend/app/services/recommendations.py`: route/cell/category-based place scoring
+- `backend/app/routers/*.py`: endpoint handlers for user, location, processing, matching, recommendations
+- `backend/migrations/001_init.sql`: database schema with PostGIS extension
+- `backend/app/seed.py`: fake-data seeding and end-to-end preprocessing
 
-## Production Notes
+## Frontend Integration
 
-For a real product, raw location logs should never be directly exposed to the client. A backend service should aggregate and generalize movement data before matching, mission generation, or social display. Sensitive zones such as home, workplace, school, and religious or medical venues should receive stricter redaction rules.
+The existing static app is preserved and upgraded to API-first behavior:
+
+- Mock login
+- User switching
+- Recompute button triggers processing/matching pipeline
+- Match cards from backend with score breakdown
+- Recommendations from backend with reasons
+- Privacy toggles patched to backend
+- Delete history action cascades deletion of derived artifacts
+
+If backend is unavailable, frontend falls back to local mock data for demo continuity.
