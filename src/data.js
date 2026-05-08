@@ -176,7 +176,6 @@ window.LIFELOOP_DATA = {
     matches: ["Matches", "Match Coach explains fit, provides safe icebreakers, and suggests first-meet formats."],
     friends: ["Friends", "Mutual likes unlock chat, weekly social windows, and place suggestions for safer meetups."],
     missions: ["Places", "Nearby places are suggested from routine cells and category fit, not exact path disclosure."],
-    privacy: ["Privacy", "Pause tracking or matching anytime, and permanently delete stored location history on demand."],
-    profile: ["Profile", "Manage your photo gallery, profile details, and connection requests in one place."]
+    profile: ["Profile", "Manage your photos, profile details, and app settings in one place."]
   }
 };

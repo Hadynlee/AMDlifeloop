@@ -864,6 +864,15 @@ select {
   width: min(100%, 260px);
 }
 
+.profile-settings {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.profile-settings h3 {
+  margin: 0;
+}
+
 .gallery-editor {
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -1207,7 +1216,7 @@ select {
   }
 
   nav {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .nav-button {
@@ -1269,7 +1278,7 @@ select {
 
   nav {
     height: 100%;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 2px;
   }
 

@@ -43,10 +43,6 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>
           <span>Places</span>
         </button>
-        <button class="nav-button" data-section="privacy" title="Privacy">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.68 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1v7z"/><path d="M9 12l2 2 4-4"/></svg>
-          <span>Privacy</span>
-        </button>
         <button class="nav-button" data-section="profile" title="Profile">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
           <span>Profile</span>
@@ -186,25 +182,6 @@
         </div>
       </section>
 
-      <section id="privacy" class="section">
-        <div class="grid two">
-          <div class="panel pad">
-            <h3>Privacy Controls</h3>
-            <p class="explain">Users can pause tracking, pause matching, disable recommendations, and remove location history.</p>
-            <div class="settings-grid inset-top" id="privacy-settings-form"></div>
-            <div class="settings-actions inset-top">
-              <button class="connect danger" id="delete-history">Delete Location History</button>
-              <span class="explain" id="privacy-message"></span>
-            </div>
-          </div>
-          <div class="panel pad">
-            <h3>Safety Rules</h3>
-            <p class="explain">These guardrails are applied before any routine profile is matched or shared.</p>
-            <div class="privacy-grid inset-top" id="privacy-grid"></div>
-          </div>
-        </div>
-      </section>
-
       <section id="profile" class="section">
         <div class="panel pad">
           <div class="panel-title-row">
@@ -212,6 +189,19 @@
             <span class="profile-message" id="profile-message"></span>
           </div>
           <div id="profile-editor"></div>
+          <div class="profile-settings inset-top">
+            <h3>Settings</h3>
+            <p class="explain">Manage privacy controls and account access from here.</p>
+            <div class="settings-grid inset-top" id="privacy-settings-form"></div>
+            <div class="settings-actions inset-top">
+              <button class="connect danger" id="delete-history">Delete Location History</button>
+              <button class="connect secondary" id="logout-button">Log Out</button>
+              <span class="explain" id="privacy-message"></span>
+            </div>
+            <h3 class="inset-top">Safety Rules</h3>
+            <p class="explain">These guardrails are applied before any routine profile is matched or shared.</p>
+            <div class="privacy-grid inset-top" id="privacy-grid"></div>
+          </div>
         </div>
       </section>
     </main>

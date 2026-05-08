@@ -35,6 +35,7 @@ const matchModalClose = document.querySelector("#match-modal-close");
 const privacyForm = document.querySelector("#privacy-settings-form");
 const privacyMessage = document.querySelector("#privacy-message");
 const deleteHistoryButton = document.querySelector("#delete-history");
+const logoutButton = document.querySelector("#logout-button");
 const profileEditorElement = document.querySelector("#profile-editor");
 const profileMessageElement = document.querySelector("#profile-message");
 const zoomModal = document.querySelector("#profile-zoom-modal");
@@ -2297,6 +2298,46 @@ async function handleLogin() {
   }
 }
 
+function handleLogout() {
+  const lastUserName = state.currentUser?.name || "";
+  const lastUserEmail = state.currentUser?.email || "";
+
+  state.currentUser = null;
+  state.profileEditMode = false;
+  state.activeFriendId = null;
+  state.activeThread = null;
+  state.routineChatMessages = [];
+
+  if (profileMessageElement) {
+    profileMessageElement.textContent = "";
+    profileMessageElement.classList.remove("error");
+  }
+  if (privacyMessage) {
+    privacyMessage.textContent = "";
+  }
+  if (safetyAlert) {
+    safetyAlert.hidden = true;
+    safetyAlert.textContent = "";
+  }
+
+  matchModal.classList.remove("visible");
+  closeProfileImageZoom();
+  closePublicProfile();
+
+  navButtons.forEach(button => {
+    button.classList.toggle("active", button.dataset.section === "routine");
+  });
+  sections.forEach(section => {
+    section.classList.toggle("active", section.id === "routine");
+  });
+  updatePageHeader("routine");
+
+  loginMessage.textContent = "";
+  loginName.value = lastUserName;
+  loginEmail.value = lastUserEmail;
+  loginModal.classList.add("visible");
+}
+
 function setupNavigation() {
   navButtons.forEach(button => {
     button.addEventListener("click", () => {
@@ -2334,7 +2375,7 @@ function setupActions() {
     }
   });
 
-  deleteHistoryButton.addEventListener("click", async () => {
+  deleteHistoryButton?.addEventListener("click", async () => {
     if (!state.currentUser) {
       return;
     }
@@ -2372,6 +2413,8 @@ function setupActions() {
       deleteHistoryButton.disabled = false;
     }
   });
+
+  logoutButton?.addEventListener("click", handleLogout);
 
   matchModalClose.addEventListener("click", () => {
     matchModal.classList.remove("visible");
