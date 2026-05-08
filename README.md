@@ -1,28 +1,111 @@
-# LifeLoop AI MVP
+# LifeLoop AI
 
-LifeLoop AI is a privacy-first routine matching prototype.
-It demonstrates that users with similar **monthly routine patterns** can be matched and shown place recommendations using **approximate area cells** instead of raw location trails.
+**Turn everyday routes into real connections.**
 
-## What This Upgrade Adds
+LifeLoop AI is a privacy-first lifestyle discovery app that learns repeated movement patterns, summarizes a user's routine, recommends compatible people and nearby places, and generates route-aware missions without exposing real-time location.
 
-This repo keeps the existing mobile-first web UI and adds a working backend MVP:
+The project is built as a mobile-first web app with a FastAPI backend, PostgreSQL/PostGIS database, AI-assisted social workflows, and a Docker Compose setup for local demos.
 
-- FastAPI backend with all requested API groups
-- PostgreSQL + PostGIS schema migration
-- Fake-data seed pipeline for users, logs, stay points, routes, profiles, matches, and recommendations
-- Privacy-safe matching logic and explanation generation
-- Privacy controls in the frontend (pause tracking, pause matching, disable recommendations, delete location history)
-- Docker Compose workflow for `db + api + web`
+## Product Overview
 
-## Stack
+Most social and recommendation apps depend on what users manually say they like. LifeLoop AI takes a different approach: it uses approximate routine signals, such as repeated zones, visit timing, dwell duration, and activity categories, to build a private lifestyle profile.
 
-- Frontend: existing mobile-optimized web app (HTML/CSS/JS), API-backed
-- Backend: FastAPI
-- Database: PostgreSQL + PostGIS
-- Matching/routine algorithm: Python services in backend
-- Runtime: Docker / Docker Compose
+The app then turns that profile into:
 
-Note: this stays in the current app architecture (improve-in-place). The backend contracts are designed so a React Native or Flutter client can be added later without rewriting core logic.
+- privacy-safe lifestyle summaries
+- compatible people recommendations
+- local place suggestions
+- route-aware missions and rewards
+- mutual-friend chat experiences
+- profile galleries and account settings
+
+LifeLoop AI is not a live-location tracking app. It is designed around generalized movement patterns, broad routine overlap, and consent-aware social discovery.
+
+## Core Features
+
+### Home
+
+- Mobile-first routine dashboard
+- Generalized routine zone map
+- Detected daily and monthly movement loops
+- Routine Mirror summary powered by routine profile data
+- Follow-up chat for routine insights
+- Recompute button to rerun the pipeline after data changes
+
+### Matches
+
+- Compatibility cards ranked by route, time, place, lifestyle, and interest similarity
+- Match explanations that avoid exact places and timestamps
+- Like action for expressing interest
+- Match detail modal with similarity breakdown
+- Match Coach follow-up questions
+- Public profile preview with name, bio, and photo gallery
+
+### Friends
+
+- Liked people list
+- Mutual friends list, unlocked when both users like each other
+- Weekly social windows based on shared routine patterns
+- Place Scout suggestions for safer public meetups
+- Friend chat with safety checks and AI-assisted replies when configured
+
+### Places
+
+- Nearby place recommendations generated from routine cells and category fit
+- Route-aware mission suggestions
+- Reward-style engagement cards
+- Google Places support when an API key is configured
+- Seeded places fallback for reliable hackathon demos
+
+### Profile
+
+- Mock login and user switching
+- Editable profile name and bio
+- Profile picture upload
+- Four-photo gallery upload with image preview
+- Profile settings section
+- Privacy controls for tracking, matching, recommendations, and home/work hiding
+- Delete location history action
+- Logout button that returns to the login screen
+
+## AI Agent Workflows
+
+LifeLoop AI is framed as an agentic lifestyle companion rather than a basic chatbot.
+
+| Agent / Workflow | Role |
+| --- | --- |
+| Routine Mirror | Summarizes weekly routine patterns and answers follow-up questions. |
+| Match Coach | Explains why two users match and suggests safer first interaction ideas. |
+| Friend Chat Assistant | Helps generate natural replies while applying safety checks. |
+| Recommendation Agent | Ranks places and missions based on route relevance, novelty, and category fit. |
+| Privacy Guardrails | Keeps outputs broad, delayed, and lifestyle-based instead of revealing precise location. |
+
+If `SOCIAL_AGENT_API_KEY` or `OPENAI_API_KEY` is configured, the backend can call an OpenAI-compatible chat API for social agent responses. If no key is present, deterministic fallback logic keeps the demo working.
+
+## Privacy Model
+
+Privacy is central to the product design.
+
+- Raw GPS points are converted into approximate area cells.
+- Matching uses compressed patterns, not live location.
+- Home and work areas can be hidden or generalized.
+- Match explanations use lifestyle labels instead of exact venues.
+- Users can pause tracking, matching, and recommendations.
+- Users can delete stored location history and derived artifacts.
+- The frontend avoids showing real-time proximity between users.
+
+## Tech Stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | HTML, CSS, vanilla JavaScript |
+| Mobile Preview | Static phone-frame shell served by nginx |
+| Backend | FastAPI |
+| Database | PostgreSQL + PostGIS |
+| Routine Processing | Python services |
+| Matching | Weighted similarity scoring |
+| Place Recommendations | Seeded places or Google Places |
+| Deployment | Docker Compose |
 
 ## Project Structure
 
@@ -33,66 +116,107 @@ Note: this stays in the current app architecture (improve-in-place). The backend
 │   │   ├── main.py
 │   │   ├── seed.py
 │   │   ├── routers/
+│   │   │   ├── location.py
+│   │   │   ├── matching.py
+│   │   │   ├── processing.py
+│   │   │   ├── recommendations.py
+│   │   │   ├── runtime.py
+│   │   │   ├── social.py
+│   │   │   └── users.py
 │   │   └── services/
+│   │       ├── geo.py
+│   │       ├── google_places.py
+│   │       ├── matching.py
+│   │       ├── recommendations.py
+│   │       ├── routine.py
+│   │       ├── social.py
+│   │       └── social_agent.py
 │   ├── migrations/
 │   │   └── 001_init.sql
 │   ├── Dockerfile
 │   └── requirements.txt
+├── docs/
+│   └── architecture.md
+├── src/
+│   ├── app.js
+│   ├── data.js
+│   ├── icons.js
+│   └── styles.css
+├── Dockerfile
 ├── docker-compose.yml
-├── Dockerfile                # frontend nginx image
-├── mobile-preview.html       # phone-frame preview shell
 ├── index.html
-└── src/
-    ├── app.js                # API-backed UI logic + fallback
-    ├── data.js
-    ├── icons.js
-    └── styles.css
+├── mobile-preview.html
+├── nginx.conf
+└── README.md
 ```
 
-## Quick Start (Docker)
+## Quick Start
 
-1. Build and start services:
+### 1. Start the app
 
 ```bash
 docker compose up --build -d db api web
 ```
 
-2. Seed fake MVP data:
+### 2. Seed demo data
 
 ```bash
 docker compose exec -T api python -m app.seed --days 35
 ```
 
-3. Open:
+### 3. Open the app
 
-- `http://localhost:8080/` phone-layout preview shell (default)
-- `http://localhost:8080/index.html` full-width web view
-- `http://localhost:8000/docs` FastAPI docs
+- Mobile preview shell: `http://localhost:8080/`
+- Full app view: `http://localhost:8080/index.html`
+- FastAPI docs: `http://localhost:8000/docs`
 
-4. Stop services:
+### 4. Stop services
 
 ```bash
 docker compose down
 ```
 
-API key config is centralized in the project root `.env` file:
-- `SOCIAL_AGENT_API_KEY`: primary key used for social AI services (Routine Mirror follow-up, Match Coach follow-up, friend chat AI replies)
-- `OPENAI_API_KEY`: fallback key if `SOCIAL_AGENT_API_KEY` is empty
-- `SOCIAL_AGENT_MODEL`: model name for social AI calls (default: `gpt-4.1-mini`)
-- `SOCIAL_AGENT_BASE_URL`: model API base URL (default: `https://api.openai.com/v1`)
-- `SOCIAL_AGENT_TIMEOUT_SECONDS`: timeout for social AI requests (default: `20`)
-- `GOOGLE_PLACES_API_KEY`: enables live Google Places recommendation sourcing
-- `GOOGLE_MAPS_API_KEY`: enables Google Maps rendering in the frontend (falls back to `GOOGLE_PLACES_API_KEY` when empty)
-- `GOOGLE_PLACES_SEARCH_RADIUS_METERS`: nearby-search radius for live place fetching
+## Environment Variables
 
-## API Endpoints
+Create or update a root `.env` file when using external providers.
 
-### Auth/User
+```env
+SOCIAL_AGENT_API_KEY=
+OPENAI_API_KEY=
+SOCIAL_AGENT_MODEL=gpt-4.1-mini
+SOCIAL_AGENT_BASE_URL=https://api.openai.com/v1
+SOCIAL_AGENT_TIMEOUT_SECONDS=20
+GOOGLE_PLACES_API_KEY=
+GOOGLE_MAPS_API_KEY=
+GOOGLE_PLACES_SEARCH_RADIUS_METERS=1500
+```
+
+| Variable | Purpose |
+| --- | --- |
+| `SOCIAL_AGENT_API_KEY` | Primary key for Routine Mirror, Match Coach, and friend chat AI replies. |
+| `OPENAI_API_KEY` | Fallback key if `SOCIAL_AGENT_API_KEY` is empty. |
+| `SOCIAL_AGENT_MODEL` | Model name for AI social workflows. |
+| `SOCIAL_AGENT_BASE_URL` | OpenAI-compatible API base URL. |
+| `SOCIAL_AGENT_TIMEOUT_SECONDS` | Timeout for agent calls. |
+| `GOOGLE_PLACES_API_KEY` | Enables live place recommendation sourcing. |
+| `GOOGLE_MAPS_API_KEY` | Enables Google Maps rendering in the frontend. |
+| `GOOGLE_PLACES_SEARCH_RADIUS_METERS` | Search radius for live place lookups. |
+
+The app works without external API keys by using seeded data, mock maps, and local fallback responses.
+
+## Backend API Summary
+
+### Runtime
+
+- `GET /health`
+- `GET /runtime/config`
+
+### Users and Privacy
 
 - `POST /users`
+- `GET /users`
 - `GET /users/{user_id}`
 - `PATCH /users/{user_id}/privacy`
-- `GET /users?email=...` (added for mock-login lookup)
 
 ### Location
 
@@ -112,7 +236,7 @@ API key config is centralized in the project root `.env` file:
 - `POST /match/recalculate/{user_id}`
 - `GET /matches/{user_id}`
 
-### Social Services
+### Social
 
 - `GET /social/match-coach/{user_id}`
 - `POST /social/likes`
@@ -129,22 +253,21 @@ API key config is centralized in the project root `.env` file:
 - `POST /recommendations/recalculate/{user_id}`
 - `GET /recommendations/{user_id}`
 
-## Implemented Algorithm Functions
+## Matching and Recommendation Logic
 
-In `backend/app/services`:
+The backend converts location logs into privacy-safe routine features:
 
-- `convert_gps_to_cell(lat, lng, grid_size_meters=300)`
-- `detect_stay_points(location_logs)` with 150m / 15min rule
-- `compress_route(cell_sequence)`
-- `build_daily_route_from_logs(...)` and route segment extraction
-- `build_routine_profile(...)` for 30-day profile
-- `jaccard_similarity(set_a, set_b)`
-- `time_pattern_similarity(vector_a, vector_b)`
-- `lifestyle_similarity(vector_a, vector_b)` via cosine similarity
-- `calculate_match_score(user_a_profile, user_b_profile)`
-- `generate_privacy_safe_explanation(scores, profiles)`
+```text
+GPS logs
+  -> approximate area cells
+  -> stay points
+  -> compressed daily routes
+  -> 30-day routine profile
+  -> lifestyle vector
+  -> matches and recommendations
+```
 
-Matching formula used:
+The match score combines multiple signals:
 
 ```text
 final_score =
@@ -155,35 +278,35 @@ final_score =
 +0.10 * interest_similarity
 ```
 
-## Frontend Screens Covered
+Recommendations are scored from routine profile category fit, approximate route relevance, novelty, and place metadata. When Google Places is enabled, live places can be fetched and upserted into the local database before scoring.
 
-- Mock login
-- Home dashboard
-- My routine summary/map
-- Match list + match detail modal
-- Recommended places page
-- Privacy settings page with delete history action
+## Demo Flow
 
-## Privacy Assumptions and Limitations
+For a judge or teammate demo:
 
-### Current safeguards
+1. Start Docker and seed data.
+2. Login with a seeded user such as `jia@example.com`.
+3. Open **Home** to show routine zones, detected loops, and Routine Mirror.
+4. Open **Matches** to show compatibility cards, profile previews, and Match Coach.
+5. Like a recommended person, then open **Friends** to show mutual friends, social windows, place suggestions, and chat.
+6. Open **Places** to show route-aware recommendations and missions.
+7. Open **Profile** to edit name/bio, upload photos, manage privacy settings, and logout.
 
-- Matching uses cell-level and compressed pattern data, not exact raw GPS route comparison.
-- Explanations avoid exact road names, exact timestamps, live location, and direct home/work disclosure.
-- Privacy toggles can disable tracking, matching, and recommendations.
-- Delete-history removes raw logs plus derived stay points, routes, profiles, matches, and recommendations.
+## Current Limitations
 
-### MVP limitations
+This is a hackathon-ready MVP, not a production app.
 
-- Frontend map and recommendations auto-switch by env keys:
-  - keys present: Google Maps + Google Places live mode
-  - keys missing: current mock map + seeded places
-- Mobile background GPS collection is simulated in this web MVP and seed data.
-- Auth is mock/simple and not production-grade.
+- Mobile GPS collection is simulated through seeded data and web demo flows.
+- Authentication is mock/simple and not production-grade.
+- Uploaded profile photos and galleries are stored in browser local storage for the frontend demo.
+- Privacy controls are implemented for the demo pipeline, but production deployments would need deeper consent, audit, encryption, and retention controls.
+- The frontend is a mobile-first web app, not a native iOS or Android application.
+- External AI and Google Places features depend on valid API keys.
 
-## Phase Mapping
+## Positioning
 
-- Phase 1 complete: schema, seed, routine/match pipeline, match list demo
-- Phase 2 partial: recommendation pipeline in place (mock places)
-- Phase 3 pending: real mobile GPS collection client
-- Phase 4 partial: privacy toggles + deletion flow implemented
+LifeLoop AI is best described as:
+
+> A privacy-first AI lifestyle companion that turns everyday routines into meaningful social connections, nearby discoveries, and personalized missions.
+
+It is intentionally broader than a dating app. The same routine intelligence can support friendship, activity partners, local exploration, and merchant-sponsored missions while keeping exact real-time location private.
