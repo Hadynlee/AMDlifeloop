@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Phone-sized preview shell for LifeLoop AI.">
+  <title>LifeLoop AI | Mobile Preview</title>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 20px 12px;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 20% 18%, #dff0e8 0%, rgba(223, 240, 232, 0) 42%),
+        radial-gradient(circle at 78% 78%, #e2ebfb 0%, rgba(226, 235, 251, 0) 44%),
+        #f6f7f2;
+      color: #18211d;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .preview {
+      width: min(100%, 430px);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 21px;
+    }
+
+    p {
+      margin: 0;
+      color: #68726d;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .phone {
+      margin-top: 14px;
+      border-radius: 34px;
+      padding: 12px;
+      background: #111713;
+      box-shadow:
+        0 16px 32px rgba(24, 33, 29, 0.2),
+        0 2px 0 rgba(255, 255, 255, 0.06) inset;
+    }
+
+    iframe {
+      display: block;
+      width: 100%;
+      aspect-ratio: 390 / 844;
+      border: 0;
+      border-radius: 24px;
+      background: #ffffff;
+    }
+
+    .links {
+      margin-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    a {
+      color: #2f7d5c;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview">
+    <h1>LifeLoop AI Mobile Preview</h1>
+    <p>This shell forces a phone-sized viewport on desktop, so the app uses the mobile layout by default.</p>
+    <div class="phone">
+      <iframe title="LifeLoop AI mobile layout preview" src="./index.html"></iframe>
+    </div>
+    <div class="links">
+      <a href="./index.html">Open Full-Width App</a>
+      <a href="./mobile-preview.html">Reload Mobile Preview</a>
+    </div>
+  </div>
+</body>
+</html>

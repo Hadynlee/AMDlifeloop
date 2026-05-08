@@ -1,110 +1,189 @@
-# LifeLoop AI
+# LifeLoop AI MVP
 
-LifeLoop AI is a privacy-first lifestyle discovery demo built for an AI agents hackathon. It turns simulated movement routines into lifestyle summaries, compatible connection recommendations, personalized missions, and merchant-style rewards without exposing exact real-time location.
+LifeLoop AI is a privacy-first routine matching prototype.
+It demonstrates that users with similar **monthly routine patterns** can be matched and shown place recommendations using **approximate area cells** instead of raw location trails.
 
-## One-liner
+## What This Upgrade Adds
 
-Instead of matching people by swiping profiles, LifeLoop matches people through shared routines, shared places, and shared lifestyles.
+This repo keeps the existing mobile-first web UI and adds a working backend MVP:
 
-## Product Positioning
+- FastAPI backend with all requested API groups
+- PostgreSQL + PostGIS schema migration
+- Fake-data seed pipeline for users, logs, stay points, routes, profiles, matches, and recommendations
+- Privacy-safe matching logic and explanation generation
+- Privacy controls in the frontend (pause tracking, pause matching, disable recommendations, delete location history)
+- Docker Compose workflow for `db + api + web`
 
-LifeLoop AI is not pitched as a dating app. It is a broader lifestyle-based social discovery platform that can support friendship, activity buddies, local exploration, dating, and merchant missions.
+## Stack
 
-The core promise:
+- Frontend: existing mobile-optimized web app (HTML/CSS/JS), API-backed
+- Backend: FastAPI
+- Database: PostgreSQL + PostGIS
+- Matching/routine algorithm: Python services in backend
+- Runtime: Docker / Docker Compose
 
-> LifeLoop AI learns a user's lifestyle from repeated movement patterns, then uses AI agents to recommend compatible people, nearby experiences, and personalized missions without exposing real-time location.
-
-## Demo Features
-
-- Generalized routine map with privacy-safe zones
-- Simulated weekly location/lifestyle data for demo users
-- AI-style lifestyle summary and inferred tags
-- Cosine-similarity matching across lifestyle vectors
-- Privacy-safe match explanations
-- Personalized mission generation
-- Mock rewards marketplace
-- Privacy and safety guardrail page
+Note: this stays in the current app architecture (improve-in-place). The backend contracts are designed so a React Native or Flutter client can be added later without rewriting core logic.
 
 ## Project Structure
 
 ```text
 .
-├── index.html          # App entrypoint
-├── README.md           # Project documentation
-├── assets/             # Reserved for images, logos, or demo screenshots
-├── docs/               # Reserved for pitch notes and architecture docs
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── seed.py
+│   │   ├── routers/
+│   │   └── services/
+│   ├── migrations/
+│   │   └── 001_init.sql
+│   ├── Dockerfile
+│   └── requirements.txt
+├── docker-compose.yml
+├── Dockerfile                # frontend nginx image
+├── mobile-preview.html       # phone-frame preview shell
+├── index.html
 └── src/
-    ├── app.js          # UI rendering, matching logic, and interactions
-    ├── data.js         # Simulated users, missions, rewards, and copy
-    ├── icons.js        # Inline SVG icon registry
-    └── styles.css      # Responsive app styling
+    ├── app.js                # API-backed UI logic + fallback
+    ├── data.js
+    ├── icons.js
+    └── styles.css
 ```
 
-## How To Run
+## Quick Start (Docker)
 
-Open `index.html` directly in a browser.
-
-No install step is required. The app is written with plain HTML, CSS, and JavaScript so it is easy to demo and easy to push to GitHub Pages.
-
-Optional local server:
+1. Build and start services:
 
 ```bash
-python3 -m http.server 8000
+docker compose up --build -d db api web
 ```
 
-Then open:
+2. Seed fake MVP data:
+
+```bash
+docker compose exec -T api python -m app.seed --days 35
+```
+
+3. Open:
+
+- `http://localhost:8080/` phone-layout preview shell (default)
+- `http://localhost:8080/index.html` full-width web view
+- `http://localhost:8000/docs` FastAPI docs
+
+4. Stop services:
+
+```bash
+docker compose down
+```
+
+API key config is centralized in the project root `.env` file:
+- `SOCIAL_AGENT_API_KEY`: primary key used for social AI services (Routine Mirror follow-up, Match Coach follow-up, friend chat AI replies)
+- `OPENAI_API_KEY`: fallback key if `SOCIAL_AGENT_API_KEY` is empty
+- `SOCIAL_AGENT_MODEL`: model name for social AI calls (default: `gpt-4.1-mini`)
+- `SOCIAL_AGENT_BASE_URL`: model API base URL (default: `https://api.openai.com/v1`)
+- `SOCIAL_AGENT_TIMEOUT_SECONDS`: timeout for social AI requests (default: `20`)
+- `GOOGLE_PLACES_API_KEY`: enables live Google Places recommendation sourcing
+- `GOOGLE_MAPS_API_KEY`: enables Google Maps rendering in the frontend (falls back to `GOOGLE_PLACES_API_KEY` when empty)
+- `GOOGLE_PLACES_SEARCH_RADIUS_METERS`: nearby-search radius for live place fetching
+
+## API Endpoints
+
+### Auth/User
+
+- `POST /users`
+- `GET /users/{user_id}`
+- `PATCH /users/{user_id}/privacy`
+- `GET /users?email=...` (added for mock-login lookup)
+
+### Location
+
+- `POST /location/log`
+- `POST /location/batch`
+- `GET /location/history/{user_id}`
+- `DELETE /location/history/{user_id}`
+
+### Processing
+
+- `POST /process/stay-points/{user_id}`
+- `POST /process/daily-routes/{user_id}`
+- `POST /process/routine-profile/{user_id}`
+
+### Matching
+
+- `POST /match/recalculate/{user_id}`
+- `GET /matches/{user_id}`
+
+### Social Services
+
+- `GET /social/match-coach/{user_id}`
+- `POST /social/likes`
+- `GET /social/liked/{user_id}`
+- `GET /social/friends/{user_id}`
+- `GET /social/chats/{user_id}/{friend_user_id}`
+- `POST /social/chats/{user_id}/{friend_user_id}/messages`
+- `GET /social/routine-mirror/{user_id}`
+- `POST /social/routine-mirror/{user_id}/ask`
+- `POST /social/match-coach/{user_id}/{other_user_id}/ask`
+
+### Recommendations
+
+- `POST /recommendations/recalculate/{user_id}`
+- `GET /recommendations/{user_id}`
+
+## Implemented Algorithm Functions
+
+In `backend/app/services`:
+
+- `convert_gps_to_cell(lat, lng, grid_size_meters=300)`
+- `detect_stay_points(location_logs)` with 150m / 15min rule
+- `compress_route(cell_sequence)`
+- `build_daily_route_from_logs(...)` and route segment extraction
+- `build_routine_profile(...)` for 30-day profile
+- `jaccard_similarity(set_a, set_b)`
+- `time_pattern_similarity(vector_a, vector_b)`
+- `lifestyle_similarity(vector_a, vector_b)` via cosine similarity
+- `calculate_match_score(user_a_profile, user_b_profile)`
+- `generate_privacy_safe_explanation(scores, profiles)`
+
+Matching formula used:
 
 ```text
-http://localhost:8000
+final_score =
+ 0.35 * route_similarity
++0.25 * time_similarity
++0.20 * place_similarity
++0.10 * lifestyle_similarity
++0.10 * interest_similarity
 ```
 
-## AI Agent Framing
+## Frontend Screens Covered
 
-The MVP represents the product as a multi-agent workflow:
+- Mock login
+- Home dashboard
+- My routine summary/map
+- Match list + match detail modal
+- Recommended places page
+- Privacy settings page with delete history action
 
-- Routine Understanding Agent: converts repeated movement patterns into lifestyle tags and summaries.
-- Matching Agent: compares users with lifestyle vectors and cosine similarity.
-- Mission Agent: generates route-relevant exploration missions.
-- Privacy and Safety Agent: generalizes sensitive places and hides exact times/locations.
-- Business Recommendation Agent: surfaces rewards only when they fit the user's lifestyle.
+## Privacy Assumptions and Limitations
 
-## Matching Model
+### Current safeguards
 
-Each user has a lifestyle vector:
+- Matching uses cell-level and compressed pattern data, not exact raw GPS route comparison.
+- Explanations avoid exact road names, exact timestamps, live location, and direct home/work disclosure.
+- Privacy toggles can disable tracking, matching, and recommendations.
+- Delete-history removes raw logs plus derived stay points, routes, profiles, matches, and recommendations.
 
-```js
-{
-  campus: 0.95,
-  sports: 0.88,
-  cafe: 0.82,
-  nightlife: 0.22,
-  nature: 0.25,
-  shopping: 0.31,
-  food: 0.72,
-  fitness: 0.69
-}
-```
+### MVP limitations
 
-The app uses cosine similarity to calculate the closest lifestyle matches. The UI explains the result in privacy-safe language instead of exposing raw logs.
+- Frontend map and recommendations auto-switch by env keys:
+  - keys present: Google Maps + Google Places live mode
+  - keys missing: current mock map + seeded places
+- Mobile background GPS collection is simulated in this web MVP and seed data.
+- Auth is mock/simple and not production-grade.
 
-## Privacy Principles
+## Phase Mapping
 
-- Never show real-time location.
-- Never reveal exact home, school, or work locations.
-- Convert exact places into broad lifestyle zones.
-- Use lifestyle labels instead of raw routes.
-- Explain matches with generalized routines.
-- Show sponsored rewards only when they are lifestyle-relevant.
-
-## Suggested Pitch
-
-Most recommendation apps ask users what they like. LifeLoop AI learns from what users actually do. It analyzes repeated movement patterns to build a private lifestyle profile, then recommends compatible people, nearby experiences, and personalized missions. Unlike dating or location apps, LifeLoop never exposes real-time location or exact routines. It matches people through shared lifestyles, not surveillance.
-
-## Future Improvements
-
-- Replace simulated logs with opt-in mobile location history.
-- Add a real AI model for natural-language mission generation.
-- Add secure account consent and match opt-in flows.
-- Add map provider integration with generalized zones.
-- Add merchant dashboard for relevant sponsored missions.
-- Add anonymized analytics for route-level business insights.
+- Phase 1 complete: schema, seed, routine/match pipeline, match list demo
+- Phase 2 partial: recommendation pipeline in place (mock places)
+- Phase 3 pending: real mobile GPS collection client
+- Phase 4 partial: privacy toggles + deletion flow implemented
