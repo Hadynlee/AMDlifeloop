@@ -636,10 +636,6 @@ function openPublicProfile(userId, fallbackName = "User") {
         <p class="explain">${bio}</p>
       </div>
     </div>
-    <div class="public-stats">
-      <span><strong>${social.connections.length}</strong> connections</span>
-      <span><strong>${social.incomingRequests.length + social.outgoingRequests.length}</strong> requests</span>
-    </div>
     <h4 class="public-gallery-title">Photo Gallery</h4>
     ${profileGalleryItemsMarkup(userId, true)}
   `;
@@ -1369,24 +1365,7 @@ function renderMatchCard(match) {
   const targetId = profileMatchTargetId(match);
   const name = profileMatchTargetName(match);
   const isLiked = match.like_state === "liked";
-  const currentUserId = profileCurrentUserId();
   ensureProfileUserRecord(targetId, name);
-  const relationship = currentUserId ? profileRelationshipWith(currentUserId, targetId) : "none";
-  const connectLabel = relationship === "connected"
-    ? "Connected"
-    : relationship === "outgoing"
-      ? "Request sent"
-      : relationship === "incoming"
-        ? "Accept request"
-        : "Send safe intro";
-  const connectDisabled = !currentUserId || relationship === "connected" || relationship === "outgoing";
-  const relationTag = relationship === "incoming"
-    ? `<span class="tag gold">Requested you</span>`
-    : relationship === "outgoing"
-      ? `<span class="tag gold">Pending</span>`
-      : relationship === "connected"
-        ? `<span class="tag gold">In connections</span>`
-        : "";
 
   return `
     <article class="card" data-match-id="${match.match_id}" data-other-user-id="${match.user_id_2}">
@@ -1400,12 +1379,11 @@ function renderMatchCard(match) {
         </button>
         <div class="score">${formatScore(match.final_score)}</div>
       </div>
-      <div class="tag-row">${tags.map(tag => `<span class="tag blue">${tag}</span>`).join("")}${relationTag}</div>
+      <div class="tag-row">${tags.map(tag => `<span class="tag blue">${tag}</span>`).join("")}</div>
       <p class="explain">${match.fit_explanation || match.explanation}</p>
       <p class="explain"><strong>Discovery:</strong> ${match.discovery_note || "Complementary lifestyle signal available."}</p>
       <div class="card-actions">
         <button class="connect" data-action="like" data-match-id="${match.match_id}" data-other-user-id="${match.user_id_2}" ${isLiked ? "disabled" : ""}>${icons.send} ${isLiked ? "Liked" : "Like"}</button>
-        <button class="connect secondary" data-action="profile-connect" data-target-id="${escapeHtml(targetId)}" data-target-name="${escapeHtml(name)}" ${connectDisabled ? "disabled" : ""}>${!currentUserId ? "Login to connect" : connectLabel}</button>
         <button class="connect secondary" data-action="detail" data-match-id="${match.match_id}">View detail</button>
         <button class="connect secondary" data-action="skip" data-match-id="${match.match_id}">Skip</button>
       </div>
@@ -1548,21 +1526,6 @@ function renderMatches(persona) {
         button.disabled = false;
         privacyMessage.textContent = `Like failed: ${error.message}`;
       }
-    });
-  });
-
-  document.querySelectorAll("[data-action='profile-connect']").forEach(button => {
-    button.addEventListener("click", () => {
-      const currentUserId = profileCurrentUserId();
-      const targetId = profileNormalizeId(button.dataset.targetId);
-      if (!currentUserId || !targetId) {
-        return;
-      }
-      const targetName = button.dataset.targetName || "User";
-      const message = sendProfileRequest(currentUserId, targetId, targetName);
-      renderMatches(persona);
-      renderProfile();
-      setProfileMessage(message);
     });
   });
 
