@@ -743,7 +743,7 @@ select {
 
 .profile-form {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .profile-avatar,
@@ -763,10 +763,9 @@ select {
   font-size: 28px;
 }
 
-.profile-top-row {
+.profile-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(154px, 0.9fr);
-  align-items: stretch;
+  justify-items: center;
   gap: 10px;
 }
 
@@ -776,10 +775,18 @@ select {
   background: #fbfcf9;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
+  width: 100%;
+  max-width: 220px;
+  margin: 0 auto;
+}
+
+.profile-avatar-button.centered {
+  flex-direction: column;
 }
 
 .profile-avatar-button span {
@@ -802,46 +809,31 @@ select {
   object-fit: cover;
 }
 
+.profile-identity {
+  text-align: center;
+}
+
+.profile-identity h4 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.profile-bio-display {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  max-width: 380px;
+}
+
+.profile-bio-display.muted {
+  color: var(--muted);
+}
+
 .profile-avatar-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.profile-connection-side {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.profile-switch-card {
-  min-height: 60px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fbfcf9;
-  padding: 8px 10px;
-  color: var(--ink);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-}
-
-.profile-switch-card span {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 700;
-}
-
-.profile-switch-card strong {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.profile-switch-card.active {
-  border-color: #9cc7b4;
-  background: var(--green-2);
-  color: var(--green);
+  justify-content: center;
 }
 
 .profile-avatar-actions input[type="file"] {
@@ -855,7 +847,21 @@ select {
 }
 
 .profile-save {
-  margin-top: 4px;
+  margin-top: 2px;
+}
+
+.profile-edit-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-edit-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.profile-edit-actions .connect {
+  width: min(100%, 260px);
 }
 
 .gallery-editor {
@@ -937,74 +943,6 @@ select {
   color: #9c3434;
   font-size: 12px;
   cursor: pointer;
-}
-
-.profile-pane {
-  display: none;
-}
-
-.profile-pane.active {
-  display: block;
-}
-
-.connections-list,
-.request-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.connection-item,
-.request-item {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px;
-  background: #fbfcf9;
-}
-
-.connection-item,
-.request-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.connection-info {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.connection-info strong {
-  display: block;
-  font-size: 14px;
-}
-
-.connection-info span {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.request-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.danger-subtle {
-  border-color: #f1cccc;
-  color: #9c3434;
-}
-
-.profile-subhead {
-  margin: 2px 0 8px;
-  font-size: 14px;
 }
 
 .empty-state {
@@ -1510,10 +1448,6 @@ select {
     grid-template-columns: 1fr;
   }
 
-  .profile-grid {
-    gap: 12px;
-  }
-
   .grid.three {
     grid-template-columns: 1fr;
   }
@@ -1619,9 +1553,8 @@ select {
     height: 68px;
   }
 
-  .profile-top-row {
-    grid-template-columns: 120px minmax(0, 1fr);
-    align-items: stretch;
+  .profile-header {
+    gap: 8px;
   }
 
   .profile-avatar-actions {
@@ -1631,37 +1564,16 @@ select {
   }
 
   .profile-avatar-button {
-    justify-content: center;
-    flex-direction: column;
-    gap: 6px;
     padding: 8px;
+    max-width: 188px;
   }
 
   .profile-avatar-button span {
     font-size: 10px;
   }
 
-  .profile-switch-card {
-    min-height: 56px;
-  }
-
-  .profile-switch-card strong {
-    font-size: 20px;
-  }
-
   .profile-avatar-actions .ghost-button {
     width: 100%;
-  }
-
-  .connection-item,
-  .request-item {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .request-actions {
-    width: 100%;
-    justify-content: flex-end;
   }
 
   .gallery-upload-row .ghost-button {

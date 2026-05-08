@@ -37,9 +37,6 @@ const privacyMessage = document.querySelector("#privacy-message");
 const deleteHistoryButton = document.querySelector("#delete-history");
 const profileEditorElement = document.querySelector("#profile-editor");
 const profileMessageElement = document.querySelector("#profile-message");
-const connectionsList = document.querySelector("#connections-list");
-const incomingRequestsList = document.querySelector("#incoming-requests-list");
-const outgoingRequestsList = document.querySelector("#outgoing-requests-list");
 const zoomModal = document.querySelector("#profile-zoom-modal");
 const zoomImage = document.querySelector("#profile-zoom-image");
 const zoomClose = document.querySelector("#profile-zoom-close");
@@ -92,7 +89,7 @@ const state = {
   localLikes: {},
   localChats: {},
   profileSocial: {},
-  activeProfileView: "connections",
+  profileEditMode: false,
 };
 
 let googleMapsLoadPromise = null;
@@ -655,22 +652,6 @@ function closePublicProfile() {
   }
   publicProfileModal.classList.remove("visible");
   publicProfileModal.setAttribute("aria-hidden", "true");
-}
-
-function setActiveProfileView(view, jumpToPane = false) {
-  if (view !== "connections" && view !== "requests") {
-    return;
-  }
-  state.activeProfileView = view;
-  renderProfile();
-  if (jumpToPane) {
-    const targetPane = document.querySelector(view === "connections" ? "#profile-connections-pane" : "#profile-requests-pane");
-    if (targetPane) {
-      requestAnimationFrame(() => {
-        targetPane.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    }
-  }
 }
 
 function fallbackUsers() {
@@ -1915,25 +1896,20 @@ function renderProfileEditor() {
   }
 
   const social = getProfileRecord(userId, state.currentUser?.name || "User");
-  const connectionsCount = social.connections.length;
-  const requestCount = social.incomingRequests.length + social.outgoingRequests.length;
   const remainingSlots = Math.max(0, MAX_GALLERY_PHOTOS - social.gallery.length);
+  const profileName = profileDisplayName(userId, state.currentUser?.name || "User");
+  const profileBio = String(social.profile.bio || "").trim();
+
   profileEditorElement.innerHTML = `
     <form class="profile-form" id="profile-form">
-      <div class="profile-top-row">
-        <button class="profile-avatar-button" type="button" data-avatar-upload="true">
+      <div class="profile-header">
+        <button class="profile-avatar-button centered" type="button" data-avatar-upload="true">
           ${profileAvatarMarkup(userId, "profile-avatar", state.currentUser?.name || "User")}
           <span>Tap to add or change photo</span>
         </button>
-        <div class="profile-connection-side">
-          <button class="profile-switch-card ${state.activeProfileView === "connections" ? "active" : ""}" type="button" data-profile-view="connections">
-            <span>Connections</span>
-            <strong>${connectionsCount}</strong>
-          </button>
-          <button class="profile-switch-card ${state.activeProfileView === "requests" ? "active" : ""}" type="button" data-profile-view="requests">
-            <span>Requests</span>
-            <strong>${requestCount}</strong>
-          </button>
+        <div class="profile-identity">
+          <h4>${escapeHtml(profileName)}</h4>
+          <p class="profile-bio-display ${profileBio ? "" : "muted"}">${profileBio ? escapeHtml(profileBio) : "No bio yet. Press Edit Profile to add one."}</p>
         </div>
       </div>
       <div class="profile-avatar-actions">
@@ -1942,11 +1918,19 @@ function renderProfileEditor() {
         <button class="ghost-button compact" type="button" data-upload-avatar="true">Upload photo</button>
         <button class="ghost-button compact" type="button" data-remove-avatar="true" ${social.profile.avatarDataUrl ? "" : "disabled"}>Remove photo</button>
       </div>
-      <label class="field-label" for="profile-name-input">Profile name</label>
-      <input class="field-input" id="profile-name-input" maxlength="42" value="${escapeHtml(social.profile.displayName)}" required>
-      <label class="field-label" for="profile-bio-input">Bio</label>
-      <textarea class="field-input bio-input" id="profile-bio-input" rows="4" maxlength="220" placeholder="Tell your connections what you enjoy.">${escapeHtml(social.profile.bio)}</textarea>
-      <button class="connect profile-save" type="submit">Save Profile</button>
+      ${state.profileEditMode ? `
+        <div class="profile-edit-fields">
+          <label class="field-label" for="profile-name-input">Profile name</label>
+          <input class="field-input" id="profile-name-input" maxlength="42" value="${escapeHtml(social.profile.displayName)}" required>
+          <label class="field-label" for="profile-bio-input">Bio</label>
+          <textarea class="field-input bio-input" id="profile-bio-input" rows="4" maxlength="220" placeholder="Tell others what you enjoy.">${escapeHtml(social.profile.bio)}</textarea>
+        </div>
+      ` : ""}
+      <div class="profile-edit-actions">
+        ${state.profileEditMode
+    ? `<button class="connect profile-save" type="submit">Save Profile</button>`
+    : `<button class="connect profile-save" type="button" data-edit-profile="true">Edit Profile</button>`}
+      </div>
       <div class="gallery-editor">
         <div class="gallery-head">
           <strong>Photo Gallery</strong>
@@ -1979,8 +1963,17 @@ function renderProfileEditor() {
     return;
   }
 
+  const editButton = form.querySelector("[data-edit-profile]");
+  editButton?.addEventListener("click", () => {
+    state.profileEditMode = true;
+    renderProfile();
+  });
+
   form.addEventListener("submit", event => {
     event.preventDefault();
+    if (!state.profileEditMode) {
+      return;
+    }
     const nameInput = document.querySelector("#profile-name-input");
     const bioInput = document.querySelector("#profile-bio-input");
     const cleanName = String(nameInput?.value || "").trim();
@@ -1996,6 +1989,7 @@ function renderProfileEditor() {
     record.profile.bio = cleanBio.slice(0, 220);
     record.updatedAt = nowIso();
     saveProfileSocialState();
+    state.profileEditMode = false;
     populateUserSelect();
     if (state.currentUser) {
       userSelect.value = state.currentUser.user_id;
@@ -2003,12 +1997,6 @@ function renderProfileEditor() {
     renderMatches(currentPersonaUser());
     renderProfile();
     setProfileMessage("Profile saved.");
-  });
-
-  profileEditorElement.querySelectorAll("[data-profile-view]").forEach(button => {
-    button.addEventListener("click", () => {
-      setActiveProfileView(button.dataset.profileView, true);
-    });
   });
 
   const avatarTapUploadButton = profileEditorElement.querySelector("[data-avatar-upload]");
@@ -2143,90 +2131,8 @@ function renderProfileEditor() {
   });
 }
 
-function renderProfileConnections() {
-  if (!connectionsList) {
-    return;
-  }
-  const userId = profileCurrentUserId();
-  if (!userId) {
-    connectionsList.innerHTML = `<div class="empty-state">Login to see your connections.</div>`;
-    return;
-  }
-  const connections = getProfileRecord(userId).connections;
-  if (!connections.length) {
-    connectionsList.innerHTML = `<div class="empty-state">No connections yet. Send safe intros from your matches.</div>`;
-    return;
-  }
-  connectionsList.innerHTML = connections.map(otherId => `
-    <article class="connection-item">
-      <button class="connection-info open-profile" type="button" data-open-profile="${escapeHtml(otherId)}">
-        ${profileAvatarMarkup(otherId, "mini-avatar")}
-        <div>
-          <strong>${escapeHtml(profileDisplayName(otherId))}</strong>
-          <span>Tap to view profile gallery</span>
-        </div>
-      </button>
-      <button type="button" class="ghost-button compact danger-subtle" data-remove-connection="${escapeHtml(otherId)}">Remove</button>
-    </article>
-  `).join("");
-}
-
-function renderProfileRequests() {
-  if (!incomingRequestsList || !outgoingRequestsList) {
-    return;
-  }
-  const userId = profileCurrentUserId();
-  if (!userId) {
-    incomingRequestsList.innerHTML = `<div class="empty-state">Login to see requests.</div>`;
-    outgoingRequestsList.innerHTML = `<div class="empty-state">Login to see requests.</div>`;
-    return;
-  }
-
-  const social = getProfileRecord(userId);
-  if (!social.incomingRequests.length) {
-    incomingRequestsList.innerHTML = `<div class="empty-state">No incoming requests right now.</div>`;
-  } else {
-    incomingRequestsList.innerHTML = social.incomingRequests.map(otherId => `
-      <article class="request-item">
-        <button class="connection-info open-profile" type="button" data-open-profile="${escapeHtml(otherId)}">
-          ${profileAvatarMarkup(otherId, "mini-avatar")}
-          <div>
-            <strong>${escapeHtml(profileDisplayName(otherId))}</strong>
-            <span>Wants to connect with you</span>
-          </div>
-        </button>
-        <div class="request-actions">
-          <button type="button" class="ghost-button compact" data-accept-request="${escapeHtml(otherId)}">Accept</button>
-          <button type="button" class="ghost-button compact danger-subtle" data-decline-request="${escapeHtml(otherId)}">Decline</button>
-        </div>
-      </article>
-    `).join("");
-  }
-
-  if (!social.outgoingRequests.length) {
-    outgoingRequestsList.innerHTML = `<div class="empty-state">No pending sent requests.</div>`;
-  } else {
-    outgoingRequestsList.innerHTML = social.outgoingRequests.map(otherId => `
-      <article class="request-item">
-        <button class="connection-info open-profile" type="button" data-open-profile="${escapeHtml(otherId)}">
-          ${profileAvatarMarkup(otherId, "mini-avatar")}
-          <div>
-            <strong>${escapeHtml(profileDisplayName(otherId))}</strong>
-            <span>Waiting for response</span>
-          </div>
-        </button>
-        <button type="button" class="ghost-button compact danger-subtle" data-cancel-request="${escapeHtml(otherId)}">Cancel</button>
-      </article>
-    `).join("");
-  }
-}
-
 function renderProfile() {
   renderProfileEditor();
-  renderProfileConnections();
-  renderProfileRequests();
-  document.querySelector("#profile-connections-pane")?.classList.toggle("active", state.activeProfileView === "connections");
-  document.querySelector("#profile-requests-pane")?.classList.toggle("active", state.activeProfileView === "requests");
 }
 
 async function handleFriendSend() {
@@ -2346,6 +2252,7 @@ async function handleUserSwitch(userId) {
   if (profileMessageElement) {
     profileMessageElement.textContent = "";
   }
+  state.profileEditMode = false;
   state.routineChatMessages = [];
   state.activeFriendId = null;
   state.activeThread = null;
@@ -2468,82 +2375,6 @@ function setupActions() {
 
   matchModalClose.addEventListener("click", () => {
     matchModal.classList.remove("visible");
-  });
-
-  connectionsList?.addEventListener("click", event => {
-    const openProfileButton = event.target.closest("button[data-open-profile]");
-    if (openProfileButton) {
-      const profileId = profileNormalizeId(openProfileButton.dataset.openProfile);
-      if (profileId) {
-        openPublicProfile(profileId, profileDisplayName(profileId));
-      }
-      return;
-    }
-
-    const removeButton = event.target.closest("button[data-remove-connection]");
-    if (!removeButton) {
-      return;
-    }
-    const userId = profileCurrentUserId();
-    const otherId = profileNormalizeId(removeButton.dataset.removeConnection);
-    if (!userId || !otherId) {
-      return;
-    }
-    const message = removeProfileConnection(userId, otherId);
-    renderMatches(currentPersonaUser());
-    renderProfile();
-    setProfileMessage(message);
-  });
-
-  incomingRequestsList?.addEventListener("click", event => {
-    const openProfileButton = event.target.closest("button[data-open-profile]");
-    if (openProfileButton) {
-      const profileId = profileNormalizeId(openProfileButton.dataset.openProfile);
-      if (profileId) {
-        openPublicProfile(profileId, profileDisplayName(profileId));
-      }
-      return;
-    }
-
-    const acceptButton = event.target.closest("button[data-accept-request]");
-    const declineButton = event.target.closest("button[data-decline-request]");
-    if (!acceptButton && !declineButton) {
-      return;
-    }
-    const userId = profileCurrentUserId();
-    const requesterId = profileNormalizeId(acceptButton ? acceptButton.dataset.acceptRequest : declineButton.dataset.declineRequest);
-    if (!userId || !requesterId) {
-      return;
-    }
-    const message = acceptButton ? acceptProfileRequest(userId, requesterId) : declineProfileRequest(userId, requesterId);
-    renderMatches(currentPersonaUser());
-    renderProfile();
-    setProfileMessage(message);
-  });
-
-  outgoingRequestsList?.addEventListener("click", event => {
-    const openProfileButton = event.target.closest("button[data-open-profile]");
-    if (openProfileButton) {
-      const profileId = profileNormalizeId(openProfileButton.dataset.openProfile);
-      if (profileId) {
-        openPublicProfile(profileId, profileDisplayName(profileId));
-      }
-      return;
-    }
-
-    const cancelButton = event.target.closest("button[data-cancel-request]");
-    if (!cancelButton) {
-      return;
-    }
-    const userId = profileCurrentUserId();
-    const targetId = profileNormalizeId(cancelButton.dataset.cancelRequest);
-    if (!userId || !targetId) {
-      return;
-    }
-    const message = cancelProfileRequest(userId, targetId);
-    renderMatches(currentPersonaUser());
-    renderProfile();
-    setProfileMessage(message);
   });
 
   zoomClose?.addEventListener("click", closeProfileImageZoom);
