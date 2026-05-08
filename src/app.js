@@ -1646,7 +1646,11 @@ function renderRecommendations(persona) {
 }
 
 function renderPrivacyRules() {
-  document.querySelector("#privacy-grid").innerHTML = STATIC_DATA.privacyRules.map(([title, body]) => `
+  const privacyGrid = document.querySelector("#privacy-grid");
+  if (!privacyGrid) {
+    return;
+  }
+  privacyGrid.innerHTML = STATIC_DATA.privacyRules.map(([title, body]) => `
     <div class="rule">
       <strong>${icons.shield}${title}</strong>
       <span>${body}</span>

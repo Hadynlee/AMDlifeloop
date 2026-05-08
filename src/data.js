@@ -171,7 +171,7 @@ window.LIFELOOP_DATA = {
   ],
   apiBase: `${window.location.protocol}//${window.location.hostname}:8000`,
   pageCopy: {
-    routine: ["Routine", "Generalized zones summarize repeated movement patterns while hiding exact GPS and real-time location."],
+    routine: ["Home", "Generalized zones summarize repeated movement patterns while hiding exact GPS and real-time location."],
     summary: ["Home", "Track routine coverage, top categories, and privacy-safe matching progress over the latest 30 days."],
     matches: ["Matches", "Match Coach explains fit, provides safe icebreakers, and suggests first-meet formats."],
     friends: ["Friends", "Mutual likes unlock chat, weekly social windows, and place suggestions for safer meetups."],
